@@ -11,10 +11,13 @@
 ![署名](preview/tag.png)
 ![重组扫掠中](preview/swap.png)
 ![错点效果](preview/glitch.png)
+![错点作为状态语言](preview/status-language.png)
 
 > 前四张是站点上的实拍（`.workbuddy/verify/v2-matrix-*.png`，深色主题 300px 宽侧栏卡）；浅色主题见
 > [preview/light-word.png](preview/light-word.png)、[preview/light-value.png](preview/light-value.png)。
-> 最后一张是错点效果与对照（左：`density .03 / patterns 8`，错点染红便于观察）。
+> 第五张是错点效果与对照（左：`density .03 / patterns 8`，错点染红便于观察）。
+> 最后一张是**同一个错点效果的四种状态语义**（正常 / 刷新瞬间 / 数据陈旧 / 离线）——
+> 装饰变成信息，见 [docs/glitch.md](docs/glitch.md) §6 与演示页第 ⑧ 栏。
 > 完整演示页截图：[preview/demo-light.png](preview/demo-light.png) · [preview/demo-dark.png](preview/demo-dark.png)
 
 ---
@@ -35,28 +38,51 @@
 
 ---
 
+## 直接改进版（用到站点上）
+
+本仓库的 `src/DotMatrix.tsx` = **站点那份组件 + 可直接应用的改进**。改进以 patch 形式给出，按顺序
+`git apply` 即可，**不动站点其它文件**；每一项都可单独取舍（新参数默认全部关闭，默认输出与 P0 修复版逐字节一致）。
+
+```
+站点 components/DotMatrix.tsx（上游 43c00d6）
+  ├─ 0001-p0-scoped-keyframes.patch   P0 修复：样式作用域化 / 单组策略 / primary 夹取
+  ├─ 0002-glitch-effect.patch         错点效果：density / patterns / holdMs / seed / holes
+  └─ 0003-visual-state-params.patch   视觉与状态：dotFill / warmth / groupColors / sweep /
+                                      staggerMs / persistence / gutter / state / boot / label / lang
+```
+
+三片都应用后与本仓库 `src/DotMatrix.tsx` 逐字节一致（SHA-256 `C8039C74…`，已验 `git apply --check`）。
+站点侧还建议改 `components/TokenMonitor.tsx` 的 `aside` 分支约 15 行（数值组配色、增量一栏、状态指示列、
+错点接数据状态、无障碍 label）—— **完整可粘贴的片段与视觉对照见 [docs/site-upgrade.md](docs/site-upgrade.md)**。
+
+---
+
 ## 目录
 
 ```
 dot-matrix/
-├─ src/DotMatrix.tsx          React 组件（零依赖，注入 <style>，可 SSR；含 P0 修复 + 错点效果）
+├─ src/DotMatrix.tsx          React 组件（零依赖，注入 <style>，可 SSR；含 P0 修复 + 错点 + 视觉/状态参数）
 ├─ demo/
-│  ├─ index.html              零构建演示页（双击即可打开，含试验台与错点调参面板）
-│  └─ dot-matrix.js           同一算法的 vanilla JS 实现（window.DotMatrix）
+│  ├─ index.html              零构建演示页（双击即可打开，含 10 栏：原版 / 错点调参 / 状态语言 / 视觉参数 / 状态与环境）
+│  └─ dot-matrix.js           同一算法的 vanilla JS 实现（window.DotMatrix，与 React 版逐用例比对）
 ├─ patches/
-│  ├─ 0001-p0-scoped-keyframes.patch   站点版 → P0 修复版的 diff（可 git apply）
-│  └─ 0002-glitch-effect.patch         P0 修复版 → 带错点效果的 diff（可叠加）
+│  ├─ 0001-p0-scoped-keyframes.patch   站点版 → P0 修复版
+│  ├─ 0002-glitch-effect.patch         P0 修复版 → 错点效果
+│  └─ 0003-visual-state-params.patch   错点效果 → 视觉/状态参数（= 本仓库 src）
 ├─ test/
 │  ├─ reference-home-aside.svg  站点 SSG 的真实输出（对照基准，335 节点）
-│  ├─ compare.html              站点版 vs 本仓库：DOM 逐节点 + 像素对照
+│  ├─ compare.html              站点版 vs 本仓库：DOM 逐节点 + 像素对照（17 项）
 │  ├─ compare-result.png        校验结果截图
-│  ├─ p0-regression.html        P0 回归探针（多实例时序 / 单组策略 / primary 夹取）
-│  ├─ glitch-probe.html         错点效果探针（数量 / 轮次 / 确定性 / reduced-motion）
-│  ├─ phase-probe.html          动画相位探针（核对组相位/列相位时序）
+│  ├─ p0-regression.html        P0 回归探针（12 项）
+│  ├─ glitch-probe.html         错点效果探针（17 项）
+│  ├─ features-probe.html       视觉/状态参数语义探针（42 项）
+│  ├─ react-parity.mjs          React 版 ↔ vanilla 版逐用例一致性（21 用例）
+│  ├─ phase-probe.html          动画相位探针
 │  ├─ shot.mjs                  确定性截图工具（CDP + 真实等待，预览图由它产出）
 │  └─ verify.md                 复跑步骤与结论
 ├─ docs/
 │  ├─ origin.md               来源与灵感：上游提交、brief 原文、设计语境、时间线、增量归属
+│  ├─ site-upgrade.md         直接改进版：patch 链、TokenMonitor 改动片段、每项的视觉效果
 │  ├─ integration.md          在 personal-site 里的接入方式与设计取舍
 │  ├─ glitch.md               错点效果：参数语义、轮次算法、DOM 代价、时间轴
 │  └─ improvements.md         可改进点：实测数据 + 优先级 + 修法（P0 已修，P1/P2 待办）
@@ -122,8 +148,9 @@ no-JS 照常运转**；`prefers-reduced-motion: reduce` 时定格 `primary` 组�
 <div data-dot-matrix='["STRIVE","6.63B","04Ting."]' data-primary="1" data-title="累计 …"></div>
 ```
 
-直接打开 [`demo/index.html`](demo/index.html) 可看到 7 个示例（原版三组轮换 / 两组互换 / 单组 / 超长文本 /
-字模表 / 可编辑试验台 / **错点效果调参面板**），支持 `?theme=light|dark|auto`。
+直接打开 [`demo/index.html`](demo/index.html) 可看到 10 栏（原版三组轮换 / 两组互换 / 单组 / 超长文本 /
+字模表 / 可编辑试验台 / 错点调参 / **错点作为状态语言** / **视觉参数** / **状态与环境**），
+支持 `?theme=light|dark|auto`。
 
 ### ③ 宿主页面必须提供
 
@@ -150,6 +177,8 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 | `className` | `string` | — | 传给根 `<svg>` 的 class（作用域类 `dm-n{n}` 会自动追加） |
 | `animate` | `"auto" \| "always" \| "never"` | `"auto"` | 单组（组数 = 1）时的动画策略：`auto` 静止、`always` 单组也带闪、`never` 强制静止。声明式：`data-animate` |
 | `glitch` | `object \| number` | 关闭 | 错点效果：切换后残留一批鬼点，第二次闪烁才纠正。`number` 等价于 `{ density }`。字段见下 |
+| `label` | `string` | `items.join(" / ")` | 无障碍名称（`aria-label`）；轮换内容对读屏是噪音，建议给语义化标签 |
+| `lang` | `string` | — | `aria` 语言标注（如 `"zh-CN"`） |
 
 **`glitch` 字段**（完整语义与算法见 [docs/glitch.md](docs/glitch.md)）：
 
@@ -161,6 +190,20 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 | `seed` | `1` | 换一组「性格」；同 seed 输出逐字节一致（SSR/hydration 安全） |
 | `holes` | `0` | 正确点里「先缺后补」的比例（不随 `patterns` 轮换） |
 | `className` | — | 追加到错点元素上的 class；改色推荐 `--dm-glitch-ink` |
+
+**视觉与状态参数**（都可选、默认关闭；声明式对应 `data-*` 属性）：
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `dotFill` | `0.615`（即 r 2.0） | 点径比例 = 点直径 ÷ 格距（0.3–0.9）：调大更像实心模块，调小更精致 |
+| `warmth` | `0` | 色温 0–1：0 = `--color-ink`，1 = 暖白 `#ffd9a0`；用 `color-mix`，老浏览器自动降级 |
+| `groupColors` | — | 逐组配色，如 `[undefined, "var(--color-accent)", undefined]` → 输出 `.dm-c{k}` 规则；未配色的组回退 `--color-ink` |
+| `sweep` | `"col"` | 重组方向：`col` / `row` / `diag` / `radial` / `dissolve`（确定性溶解） |
+| `staggerMs` | `22` | 相邻列（行）的相位步进 |
+| `persistence` | `0` | 余晖：数字 = 延后 ms，或 `{ ms, opacity }`；给每个亮点加一个暗副本（DOM ×2） |
+| `gutter` | — | 两侧固定状态指示列：`true` 或 `{ heartbeat, online }`；占宽 4 列，文字整体内缩 |
+| `state` | `"run"` | `"idle"` = 待机：只留底点 + 中间行来回扫的脉冲（无内容、无错点） |
+| `boot` | `false` | 开机自检：整屏先全亮，再按列逐列退回底点（一次性，复用底点、无额外节点） |
 
 无障碍：根节点是 `role="img"`，`aria-label` 为各组以 `" / "` 连接；`title` 另作悬停说明。
 
@@ -211,21 +254,29 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 | P0-2 守卫 | 单组 `auto` 无动画节点、`always` 有；n = 1 关键帧无越界百分比 |
 | 两块屏并排渲染的像素差 | 15 600 像素中 4 个不同，最大通道差 8/255（亚像素抗锯齿） |
 
-另有 `test/p0-regression.html`：12 项断言覆盖 P0-1/P0-2/P0-3（多实例时长、无全局规则、单组策略、primary 夹取）。
-复跑步骤见 [test/verify.md](test/verify.md)。
+另有 `test/p0-regression.html`（12 项）、`test/glitch-probe.html`（17 项）、
+`test/features-probe.html`（42 项，覆盖视觉/状态参数语义），以及
+`test/react-parity.mjs`（21 用例，React 版 ↔ vanilla 版逐字节比对）。复跑步骤见 [test/verify.md](test/verify.md)。
 
 ## 已知边界
 
 - 每组建议 **≤ 7 字符**：超长不会截断，而是整屏 `viewBox` 变宽，在 `width:100%` 下等比缩小、点距变密（见 demo 第 ④ 例）。
 - **单组（n = 1）默认静止**：唯一的组与「全组共用」等价，所有亮点走 `.dm-both`（常亮），
   所以是一张静态点阵图；需要它动就传 `animate="always"`（demo 第 ③ 例给了两种对照）。
-- 未收录字符（含空格、中文）占 1 格宽度但不点亮；新增字形只需往 `FONT` 里按同格式加一行。
-- 动画是纯 CSS，`prefers-reduced-motion` 下由浏览器直接定格；数值更新不需要重挂动画（点阵逐帧本就在变）。
+- 未收录字符（含空格、中文）占 1 格宽度但不点亮；`FONT` 现已含 A–Z、0–9、常用标点与
+  `♥ ★ ↑ ↓ → ← ✓ ♪ ● ■` 等 5×7 图标，新增字形按同格式加一行即可。
+- 动画是纯 CSS，`prefers-reduced-motion` 下由浏览器直接定格（新增的余晖/心跳/待机/自检装饰动画也一并停掉）。
 - 同组数的实例会各自注入一份内容相同的 `<style>`（重复无害，只是多几十字节）；若要按 n 去重，
   需在 layout 层收集，SSR 下收益不值得。
+- **新参数默认全部关闭**，默认输出与 P0 修复版逐字节一致；开启后各有代价：
+  `gutter` 占宽 4 列（点径约小 9%）、`persistence` DOM ×2、`glitch patterns 8` 约 +144 节点、
+  `warmth` 需要 `color-mix`（2023+ 浏览器，老浏览器自动降级为纯 ink）。
+- `boot` 是**一次性动画**，每次挂载都会播一遍（SSR 首帧 = 上电）；`state="idle"` 时不显示内容与错点。
+- 4 组内容 = 20s 一轮（每组固定 5s）；「逐组时长」是待办项，见 [docs/improvements.md](docs/improvements.md)。
 
 > 完整的实测数据、优先级与剩余修法（含把 333 个节点合批成 76 条 path、主线程开销 −56% 的可行性验证）
-> 见 **[docs/improvements.md](docs/improvements.md)**。
+> 见 **[docs/improvements.md](docs/improvements.md)**；只记录、暂不实现的构想见
+> [docs/site-upgrade.md](docs/site-upgrade.md) 第三节。
 
 ## 来源与许可
 
@@ -234,8 +285,9 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
   - **提取基准** = `43c00d6:components/DotMatrix.tsx`，SHA-256 `0F7896CD23B110205DEF4CAF3A9B2B16BF87BA390DDA633F512B7E5282D59221`
     （提取时该二稿尚未提交，从工作树取；内容与 `43c00d6` 逐字节一致。站点侧此后到 `997e410` 未再改动该文件）
     - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `886944859202162F80F3BAA465EB6F16F85345E94C72FA8D311F16E2A24224DC`，6 hunk，+44 / −15）
-    - 再叠 `patches/0002-glitch-effect.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `0B834B3872565DFF7CB249AA2692CA925BF1F60077F5B8C0070A524270442D3F`，8 hunk，+160 / −2）
-    - 两个 patch 均已验：`git apply` 后与对应版本**逐字节一致**
+    - 再叠 `patches/0002-glitch-effect.patch` = 错点效果版（8 hunk，+160 / −2）
+    - 再叠 `patches/0003-visual-state-params.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `C8039C7445E33654C0D24D494322C93CA45FAC678765882D4966B69C696B6D71`，10 hunk，+354 / −92）
+    - 三片 patch 均已验：按顺序 `git apply` 后与对应版本**逐字节一致**
   - `components/TokenMonitor.tsx` — 首页侧栏 `variant === "aside"` 的接入点（`DOT_MATRIX_WORD` / `DOT_MATRIX_TAG`）
   - `app/globals.css` — 一稿的 `.dm-*` 规则（二稿已改为组件内注入）
 - 完整来源梳理与灵感说明：[docs/origin.md](docs/origin.md)

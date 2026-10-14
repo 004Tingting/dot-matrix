@@ -112,6 +112,21 @@
       .charset figure { margin: 0; }
       .charset figcaption { color: var(--color-muted); font-size: 11px; margin-bottom: 6px; }
 
+      /* 状态语言四宫格 */
+      .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }
+      .grid2 figure { margin: 0; }
+      .grid2 figcaption { color: var(--color-muted); font-size: 11px; line-height: 1.5; margin-top: 8px; }
+      .grid2 figcaption b { color: var(--color-ink); font-weight: 600; }
+      .grid2 figcaption code { color: var(--color-ink); }
+
+      /* 外框（bezel）示范：宿主页面的 CSS 配方，不是组件功能 */
+      .bezel {
+        padding: 14px 16px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+        box-shadow: inset 0 0 0 1px var(--color-rule), inset 0 2px 8px color-mix(in srgb, var(--color-ink) 10%, transparent);
+      }
+
       /* ---------- 试验台 ---------- */
       .play { display: grid; gap: 14px; grid-template-columns: minmax(220px, 1fr) 120px; margin-top: 20px; }
       .play--wide { grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr); }
@@ -286,6 +301,7 @@
           <div class="actions">
             <button type="button" class="btn btn--solid" id="play-apply">应用</button>
             <button type="button" class="btn" id="play-reset">重置</button>
+            <button type="button" class="btn" id="play-delta">载入「含增量」四组</button>
           </div>
           <div class="stage stage--paper" style="margin-top: 18px">
             <div class="dm-host dm-host--aside" id="play-host"></div>
@@ -324,6 +340,107 @@
             <div class="dm-host dm-host--aside" id="gl-host"></div>
           </div>
           <pre id="gl-code"></pre>
+        </section>
+
+        <section class="card">
+          <h2><em>⑧</em>错点作为「状态语言」</h2>
+          <p class="note">
+            同一个错点效果，换参数就是另一种<b>状态语义</b>——装饰变成信息。四格是同一份数据在四种状态下的样子
+            （错点染红便于观察；参数清单见 <code>docs/glitch.md</code>）。
+          </p>
+          <div class="grid2">
+            <figure>
+              <div class="dm-host" id="st-ok"></div>
+              <figcaption><b>正常</b>：hub 在线、数据新鲜 · <code>glitch: 关</code></figcaption>
+            </figure>
+            <figure>
+              <div class="dm-host" id="st-refresh"></div>
+              <figcaption><b>刷新瞬间</b>：数值刚更新，一次短促爆发 · <code>density .035 / patterns 1 / holdMs 120</code></figcaption>
+            </figure>
+            <figure>
+              <div class="dm-host" id="st-stale"></div>
+              <figcaption><b>数据陈旧</b>：用的是快照兜底，同几处坏点反复闪 · <code>density .02 / patterns 2 / holdMs 420</code></figcaption>
+            </figure>
+            <figure>
+              <div class="dm-host" id="st-offline"></div>
+              <figcaption><b>离线</b>：hub 拉不到，屏面持续不稳定 + 右列告警 · <code>density .06 / holdMs 600</code> + <code>gutter.online:false</code></figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2><em>⑨</em>视觉参数</h2>
+          <p class="note">
+            点径比例、色温、重组方向、余晖、逐组配色——全部是可选参数，默认关闭时输出与旧版逐字节一致。
+          </p>
+          <div class="play play--wide">
+            <div>
+              <div class="slabel"><span>dotFill 点径比例</span><b id="v-dotfill-v">0.615</b></div>
+              <input id="v-dotfill" type="range" min="0.3" max="0.9" step="0.005" value="0.615" />
+              <div class="slabel"><span>warmth 色温</span><b id="v-warmth-v">0%</b></div>
+              <input id="v-warmth" type="range" min="0" max="1" step="0.05" value="0" />
+              <div class="slabel"><span>persistence 余晖</span><b id="v-persist-v">0ms</b></div>
+              <input id="v-persist" type="range" min="0" max="400" step="20" value="0" />
+            </div>
+            <div>
+              <div class="slabel"><span>sweep 重组方向</span><b id="v-sweep-v">col</b></div>
+              <select id="v-sweep">
+                <option value="col" selected>col 逐列（原版）</option>
+                <option value="row">row 逐行</option>
+                <option value="diag">diag 对角</option>
+                <option value="radial">radial 由中心扩散</option>
+                <option value="dissolve">dissolve 溶解</option>
+              </select>
+              <div class="slabel"><span>staggerMs 相位步进</span><b id="v-stagger-v">22ms</b></div>
+              <input id="v-stagger" type="range" min="4" max="60" step="2" value="22" />
+              <label class="slabel" style="cursor:pointer">
+                <span>groupColors 数值组用 accent</span>
+                <input type="checkbox" id="v-accent" style="width:auto;accent-color:var(--color-accent)" />
+              </label>
+            </div>
+          </div>
+          <div class="stage stage--paper" style="margin-top: 18px">
+            <div class="dm-host dm-host--aside" id="v-host"></div>
+          </div>
+          <pre id="v-code"></pre>
+        </section>
+
+        <section class="card">
+          <h2><em>⑩</em>状态与环境</h2>
+          <p class="note">
+            待机态（无数据/离线时不留空屏）、开机自检（一次性整屏点亮再逐列退回）、两侧状态指示列，
+            以及宿主页面的「外框」配方。
+          </p>
+          <div class="play play--wide">
+            <div>
+              <div class="slabel"><span>state</span><b id="e-state-v">run</b></div>
+              <select id="e-state">
+                <option value="run" selected>run 正常轮换</option>
+                <option value="idle">idle 待机脉冲</option>
+              </select>
+              <label class="slabel" style="cursor:pointer">
+                <span>boot 开机自检</span>
+                <input type="checkbox" id="e-boot" style="width:auto;accent-color:var(--color-accent)" />
+              </label>
+            </div>
+            <div>
+              <label class="slabel" style="cursor:pointer">
+                <span>gutter 状态指示列</span>
+                <input type="checkbox" id="e-gutter" checked style="width:auto;accent-color:var(--color-accent)" />
+              </label>
+              <label class="slabel" style="cursor:pointer">
+                <span>online 在线（取消 = 离线告警）</span>
+                <input type="checkbox" id="e-online" checked style="width:auto;accent-color:var(--color-accent)" />
+              </label>
+              <div class="actions" style="margin-top: 12px">
+                <button type="button" class="btn" id="e-replay">重播自检</button>
+              </div>
+            </div>
+          </div>
+          <div class="stage stage--paper bezel" style="margin-top: 18px">
+            <div class="dm-host dm-host--aside" id="e-host"></div>
+          </div>
+          <pre id="e-code"></pre>
         </section>
       </main>
 
@@ -390,6 +507,13 @@
           animateSelect.value = DEFAULTS.animate;
           render();
         });
+        document.getElementById("play-delta").addEventListener("click", function () {
+          /* 「增量」一栏：数值组旁边加一组今日增量（站点侧由 periods.today.totalTokens 算出） */
+          ta.value = "STRIVE\n+12M\n6.63B\n04Ting.";
+          primaryInput.value = "2";
+          animateSelect.value = "auto";
+          render();
+        });
         ta.addEventListener("input", render);
         primaryInput.addEventListener("input", render);
         animateSelect.addEventListener("change", render);
@@ -445,6 +569,87 @@
           el.seed.value = String((Number(el.seed.value) % 40) + 1);
           render();
         });
+        render();
+      })();
+
+      /* ---------- ⑧ 错点作为「状态语言」：同一效果，四种状态语义 ---------- */
+      (function () {
+        var ITEMS = ["STRIVE", "6.63B", "04Ting."];
+        var STATES = [
+          ["st-ok", {}],
+          ["st-refresh", { glitch: { density: 0.035, patterns: 1, holdMs: 120, seed: 2 } }],
+          ["st-stale", { glitch: { density: 0.02, patterns: 2, holdMs: 420, seed: 5 } }],
+          ["st-offline", { glitch: { density: 0.06, patterns: 1, holdMs: 600, seed: 7 }, gutter: { heartbeat: true, online: false } }],
+        ];
+        STATES.forEach(function (s) {
+          var opts = { primary: 1 };
+          for (var k in s[1]) opts[k] = s[1][k];
+          document.getElementById(s[0]).appendChild(DotMatrix.create(ITEMS, opts));
+        });
+      })();
+
+      /* ---------- ⑨ 视觉参数 ---------- */
+      (function () {
+        var host = document.getElementById("v-host");
+        var code = document.getElementById("v-code");
+        var dotfill = document.getElementById("v-dotfill");
+        var warmth = document.getElementById("v-warmth");
+        var persist = document.getElementById("v-persist");
+        var sweep = document.getElementById("v-sweep");
+        var stagger = document.getElementById("v-stagger");
+        var accent = document.getElementById("v-accent");
+        var DEFAULTS = { dotfill: "0.615", warmth: "0", persist: "0", sweep: "col", stagger: "22", accent: false };
+
+        function render() {
+          var df = Number(dotfill.value), wm = Number(warmth.value), ps = Number(persist.value);
+          var sw = sweep.value, st = Number(stagger.value), ac = accent.checked;
+          document.getElementById("v-dotfill-v").textContent = df.toFixed(3);
+          document.getElementById("v-warmth-v").textContent = Math.round(wm * 100) + "%";
+          document.getElementById("v-persist-v").textContent = ps + "ms";
+          document.getElementById("v-sweep-v").textContent = sw;
+          document.getElementById("v-stagger-v").textContent = st + "ms";
+          host.innerHTML = "";
+          var opts = { primary: 1, dotFill: df, warmth: wm, sweep: sw, staggerMs: st, persistence: ps };
+          if (ac) opts.groupColors = [undefined, "var(--color-accent)", undefined];
+          host.appendChild(DotMatrix.create(["STRIVE", "6.63B", "04Ting."], opts));
+          code.innerHTML =
+            "DotMatrix.create(items, { <b>" + JSON.stringify(opts).replace(/[{}"]/g, "").replace(/,/g, ", ") + "</b> })" +
+            "\n// 点径 r = <b>" + ((6.5 * df) / 2).toFixed(2) + "</b> · 重组方向 <b>" + sw + "</b> · 余晖 <b>" + ps + "ms</b>";
+        }
+        [dotfill, warmth, persist, stagger].forEach(function (el) { el.addEventListener("input", render); });
+        sweep.addEventListener("change", render);
+        accent.addEventListener("change", render);
+        render();
+      })();
+
+      /* ---------- ⑩ 状态与环境 ---------- */
+      (function () {
+        var host = document.getElementById("e-host");
+        var code = document.getElementById("e-code");
+        var stateSel = document.getElementById("e-state");
+        var bootCk = document.getElementById("e-boot");
+        var gutterCk = document.getElementById("e-gutter");
+        var onlineCk = document.getElementById("e-online");
+
+        function render() {
+          var st = stateSel.value, boot = bootCk.checked, gut = gutterCk.checked, on = onlineCk.checked;
+          document.getElementById("e-state-v").textContent = st;
+          host.innerHTML = "";
+          var opts = { primary: 1, state: st, boot: boot };
+          if (gut) opts.gutter = { heartbeat: true, online: on };
+          host.appendChild(DotMatrix.create(["STRIVE", "6.63B", "04Ting."], opts));
+          var svg = host.querySelector("svg");
+          code.innerHTML =
+            "DotMatrix.create(items, { <b>state: \"" + st + "\", boot: " + boot + (gut ? ", gutter: { online: " + on + " }" : "") + "</b> })" +
+            "\n// 圆点 <b>" + svg.querySelectorAll("circle").length + "</b> 个 · 动画点 <b>" + svg.querySelectorAll(".dm-item").length +
+            "</b> 个 · 指示列 <b>" + svg.querySelectorAll(".dm-hb,.dm-on").length + "</b> 个";
+        }
+        stateSel.addEventListener("change", render);
+        bootCk.addEventListener("change", render);
+        gutterCk.addEventListener("change", render);
+        onlineCk.addEventListener("change", render);
+        /* 自检是一次性动画：重播 = 重新创建（模拟重新上电） */
+        document.getElementById("e-replay").addEventListener("click", render);
         render();
       })();
     </script>

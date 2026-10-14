@@ -135,22 +135,46 @@ PASS  ⑦ 错点在 prefers-reduced-motion 下被禁用
 
 语义、算法与 DOM 代价见 [../docs/glitch.md](../docs/glitch.md)。
 
-## 8. 覆盖范围与缺口（如实说明）
+## 8. 视觉/状态参数探针
+
+`test/features-probe.html` 用 42 项断言覆盖新参数的**语义**（parity 只保证两个实现一致，不保证参数做对了事）：
+
+```
+PASS  ① 默认参数不产生任何新节点/新规则、点半径仍为 2、根 class 只有作用域类（回归保护）
+PASS  ② dotFill 0.8 → r = 2.6；warmth 0.5 → color-mix 50% 墨 + 暖白，且保留普通 fill 兜底
+PASS  ③ 数值组（k=1）拿到 accent 配色并带 dm-c1；未配色的组回退 --color-ink
+PASS  ③ gutter 占 4 列（viewBox 292.5 = 45 列）；心跳 3 点在第 0 列、在线点在第 44 列；
+        online:false → 出现离线闪烁动画；gutter:true 等价于心跳 + 在线
+PASS  ④ sweep=col/row/diag 分别满足「同列/同行/同对角线同相位」；radial 离中心近的先亮；
+        dissolve 相位分散、确定性、受 staggerMs 影响
+PASS  ⑤ 余晖副本数 = 动画点数（214/214）、延后 120ms、用 fill-opacity 变暗、reduced-motion 下关闭
+PASS  ⑥ 待机态无动画点、无错点，中间行 41 个脉冲点按列错峰 40ms，指示列仍工作
+PASS  ⑦ boot 给根节点加 dm-boot、每个底点延迟 = 列号 × 18ms；字模扩展 26 个新字形全部收录
+PASS  ⑧ label 覆盖 aria-label、lang 写入根节点；未传时保持原行为
+```
+
+## 9. React ↔ vanilla 一致性（react-parity.mjs）
+
+`test/react-parity.mjs` 把 `src/DotMatrix.tsx` 用 `typescript.transpileModule` 转译后做 SSR，
+与 `demo/dot-matrix.js` 在同一页里逐用例比对（分区比较：注入 CSS / 圆点与其它子节点 / 根属性）：
+
+```
+node test/react-parity.mjs        # 21 个用例，覆盖默认 / 单组 / 错点 / 每个新参数 / 全开
+```
+
+依赖 `typescript` + `react` + `react-dom`（**仅测试需要**，组件本身零依赖）。默认从
+`P:\personal-site\node_modules` 借用（只读），也可 `NODE_PATH=<任意 node_modules> node test/react-parity.mjs`；
+缺依赖时打印 SKIP 并以 0 退出。这个脚本在实现本批参数时立刻抓到过一次真实分歧
+（两边的 CSS 拼装顺序不同），是本仓库唯一能直接校验 React 版的手段。
+
+## 10. 覆盖范围
 
 | 目标 | 状态 |
 | --- | --- |
-| `demo/dot-matrix.js`（vanilla 实现） | ✅ 自动化：对照校验 17 项、P0 探针 12 项、错点探针 17 项 |
-| `src/DotMatrix.tsx`（React 版） | ⚠️ **未纳入自动化** |
+| `demo/dot-matrix.js`（vanilla 实现） | ✅ 对照校验 17 项 + P0 探针 12 项 + 错点探针 17 项 + 参数探针 42 项 |
+| `src/DotMatrix.tsx`（React 版） | ✅ `react-parity.mjs` 21 用例逐字节比对（此前是缺口，现已补上） |
 | 站点 SSG 真实输出 | ✅ 作为对照基准（`reference-home-aside.svg`），逐节点 + 像素比对 |
 
-React 版没有自动化测试的原因：本仓库刻意**不带构建链**（组件定位是"复制即用、零依赖"），
-浏览器探针只能跑 vanilla 镜像。两者的一致性靠两点保证：
-
-1. **逐行镜像**：同一份 `FONT`、同一套几何常数、同一套 `@keyframes` 生成公式与错点轮次算法；
-2. **间接对齐**：`compare.html` 的基准正是站点上 **React 版 SSR 输出**的真实 SVG ——
-   默认参数下 vanilla 版与 React 版的输出被这份基准夹在一起校验过（17 项全 PASS）。
-
-要在站点接入 P0/错点之后回归：跑站点自己的构建，再用同一套判据（DOM 规范化序列化 + 像素差阈值）。
-想做更强的 **React ↔ vanilla 一致性测试**，可用站点 `node_modules` 里的 `typescript` + `react-dom/server`
-把 `src/DotMatrix.tsx` 转译并渲染，再与 vanilla 输出逐字比对（本机已确认这两个包存在）——
-属于可选的下一步，目前未实现。
+仍**不覆盖**：真实浏览器里的视觉回归（截图靠人眼看）、`prefers-reduced-motion` 的实际媒体查询生效
+（探针只检查 CSS 文本）、站点接入后的端到端表现。要在站点接入 P0/错点/新参数后回归：
+跑站点自己的构建，再用同一套判据（DOM 规范化序列化 + 像素差阈值 + 三个探针页）。

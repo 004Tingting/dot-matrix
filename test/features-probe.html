@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>视觉/状态参数探针 · DotMatrix</title>
+    <style>
+      html, body { margin: 0; padding: 12px; background: #faf8f5; color: #1a1a1a; }
+      :root { --color-ink: #1a1a1a; --color-accent: #b4432e; --dm-glitch-ink: #b4432e; }
+      body { font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace; }
+      .row { display: flex; gap: 20px; flex-wrap: wrap; }
+      .cell { width: 260px; }
+      .cell svg { display: block; width: 100%; height: auto; }
+      .cell p { margin: 4px 0 0; color: rgba(26, 26, 26, 0.55); }
+      #out { white-space: pre-wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(26, 26, 26, 0.15); }
+      .ok { color: #1f7a3d; font-weight: 700; }
+      .bad { color: #b4432e; font-weight: 700; }
+      .dim { color: rgba(26, 26, 26, 0.55); }
+    </style>
+  </head>
+  <body>
+    <!--
+      视觉 / 状态参数探针：断言每个新参数「确实做了该做的事」（test/react-parity.mjs 只保证
+      React 版与 vanilla 版一致，不保证语义正确）。
+    -->
+    <div class="row">
+      <div class="cell"><div id="a"></div><p>默认（回归基准）</p></div>
+      <div class="cell"><div id="b"></div><p>dotFill .8 / warmth .5</p></div>
+      <div class="cell"><div id="c"></div><p>数值组 accent + 指示列</p></div>
+      <div class="cell"><div id="d"></div><p>sweep=diag / persistence 120</p></div>
+      <div class="cell"><div id="e"></div><p>state=idle</p></div>
+      <div class="cell"><div id="f"></div><p>boot + 字模扩展</p></div>
+    </div>
+    <div id="out">探针运行中…</div>
+
+    <script src="../demo/dot-matrix.js"></script>
+    <script>
+      (function () {
+        var out = document.getElementById("out");
+        var lines = [], failed = 0;
+        var ITEMS = ["STRIVE", "6.63B", "04Ting."];
+        var PITCH = DotMatrix.PITCH;
+
+        function line(ok, label, detail) {
+          if (!ok) failed++;
+          lines.push((ok ? '<span class="ok">PASS</span>' : '<span class="bad">FAIL</span>') + "  " + label +
+            (detail ? '  <span class="dim">' + detail + "</span>" : ""));
+        }
+        function css(svg) { return svg.querySelector("style").textContent; }
+        function delayOf(el) { return parseFloat((el.getAttribute("style") || "").replace(/[^\d.]/g, "")) || 0; }
+        function colOf(el) { return Math.floor(parseFloat(el.getAttribute("cx")) / PITCH); }
+        function rowOf(el) { return Math.floor(parseFloat(el.getAttribute("cy")) / PITCH); }
+        function mount(id, items, opts) {
+          var svg = DotMatrix.create(items, opts);
+          document.getElementById(id).appendChild(svg);
+          return svg;
+        }
+
+        try {
+          /* ① 默认回归：不得引入任何新类/规则 */
+          var def = mount("a", ITEMS, { primary: 1, title: "t" });
+          var defCss = css(def);
+          line(def.querySelectorAll(".dm-c0,.dm-after,.dm-hb,.dm-idle,.dm-on,.dm-boot,.dm-glitch").length === 0,
+            "① 默认参数不产生任何新节点", "圆点 " + def.querySelectorAll("circle").length + " 个");
+          line(defCss.indexOf("dm-c") < 0 && defCss.indexOf("dm-after") < 0 && defCss.indexOf("dm-hb") < 0 &&
+            defCss.indexOf("dm-idle") < 0 && defCss.indexOf("dm-boot") < 0,
+            "① 默认参数不产生任何新 CSS 规则");
+          line(def.querySelectorAll("circle[r='2']").length === def.querySelectorAll("circle").length,
+            "① 默认点半径仍为 2", "r=2 的圆点 " + def.querySelectorAll("circle[r='2']").length + " 个");
+          line(def.getAttribute("class") === "dm-n3", "① 默认根 class 只有作用域类", def.getAttribute("class"));
+
+          /* ② dotFill / warmth */
+          var f = mount("b", ITEMS, { dotFill: 0.8, warmth: 0.5 });
+          var expectR = (PITCH * 0.8) / 2;
+          line(f.querySelectorAll("circle[r='" + expectR + "']").length === f.querySelectorAll("circle").length,
+            "② dotFill 0.8 → r = " + expectR, "圆点 " + f.querySelectorAll("circle").length + " 个");
+          line(/fill: color-mix\(in srgb, var\(--color-ink\) 50%, #ffd9a0\)/.test(css(f)),
+            "② warmth 0.5 → color-mix 50% 墨 + 暖白");
+          line(/\.dm-n3 \.dm-c0 \{ fill: var\(--color-ink\); fill: color-mix/.test(css(f)),
+            "② 暖色行保留普通 fill 兜底（老浏览器降级）");
+
+          /* ③ 分组配色 + 状态指示列 */
+          var g = mount("c", ITEMS, { groupColors: [undefined, "var(--color-accent)", undefined], gutter: { heartbeat: true, online: true } });
+          var gc = css(g);
+          line(/\.dm-n3 \.dm-c1 \{ fill: var\(--color-accent\); \}/.test(gc), "③ 数值组（k=1）拿到 accent 配色");
+          line(g.querySelectorAll(".dm-item.dm-c1").length > 0, "③ 组 1 的动画点带 dm-c1 类",
+            g.querySelectorAll(".dm-item.dm-c1").length + " 个");
+          /* 配色开启时每组都拿到 dm-c{k} 钩子（未配色的那组回退到 --color-ink），
+             这样宿主也可以只靠 CSS 覆盖某一组 */
+          line(/\.dm-n3 \.dm-c0 \{ fill: var\(--color-ink\); \}/.test(gc) && /\.dm-n3 \.dm-c2 \{ fill: var\(--color-ink\); \}/.test(gc),
+            "③ 未配色的组回退到 --color-ink（钩子仍在，便于纯 CSS 覆盖）");
+          var textCols = 6 * 7 - 1; // "04Ting." = 41 列
+          line(parseFloat(g.getAttribute("viewBox").split(" ")[2]) === (textCols + 4) * PITCH,
+            "③ 指示列占 4 列（每侧 1 列 + 1 列空隙）", "viewBox 宽 " + g.getAttribute("viewBox").split(" ")[2]);
+          line(g.querySelectorAll(".dm-hb").length === 3, "③ 心跳列 3 个点", g.querySelectorAll(".dm-hb").length + " 个");
+          line(g.querySelectorAll(".dm-on").length === 1 && g.querySelectorAll(".dm-on-off").length === 0,
+            "③ 在线指示常亮（无离线闪烁类）");
+          var hb0 = g.querySelectorAll(".dm-hb")[0];
+          line(colOf(hb0) === 0, "③ 心跳点在左指示列", "col=" + colOf(hb0));
+          var onDot = g.querySelector(".dm-on");
+          line(colOf(onDot) === textCols + 3, "③ 在线点在右指示列", "col=" + colOf(onDot));
+          var off = DotMatrix.create(ITEMS, { gutter: { heartbeat: true, online: false } });
+          line(off.querySelectorAll(".dm-on-off").length === 1 && /dm-warn-3/.test(css(off)),
+            "③ online:false → 离线闪烁动画");
+          var gOnly = DotMatrix.create(ITEMS, { gutter: true });
+          line(gOnly.querySelectorAll(".dm-hb").length === 3 && gOnly.querySelectorAll(".dm-on").length === 1,
+            "③ gutter:true 等价于心跳 + 在线");
+
+          /* ④ sweep 变体 */
+          function delays(svg) {
+            var map = {};
+            svg.querySelectorAll(".dm-i0").forEach(function (e) {
+              map[colOf(e) + "," + rowOf(e)] = delayOf(e) % 5000; // 去掉组相位
+            });
+            return map;
+          }
+          var byCol = delays(DotMatrix.create(ITEMS, {}));
+          var byRow = delays(DotMatrix.create(ITEMS, { sweep: "row" }));
+          var byDiag = delays(DotMatrix.create(ITEMS, { sweep: "diag" }));
+          function sameFor(map, keyFn) {
+            var seen = {};
+            for (var k in map) {
+              var key = keyFn(k.split(",").map(Number)[0], k.split(",").map(Number)[1]);
+              if (seen[key] === undefined) seen[key] = map[k];
+              else if (seen[key] !== map[k]) return false;
+            }
+            return true;
+          }
+          line(sameFor(byCol, function (c) { return c; }), "④ sweep=col：同列同相位（默认）");
+          line(sameFor(byRow, function (c, r) { return r; }), "④ sweep=row：同行同相位");
+          line(sameFor(byDiag, function (c, r) { return c + r; }), "④ sweep=diag：同对角线同相位");
+          var byRadial = delays(DotMatrix.create(ITEMS, { sweep: "radial" }));
+          /* 不假设中间列一定有亮点：取「延迟最小」与「延迟最大」的格位，比较它们到中心的距离 */
+          var radialKeys = Object.keys(byRadial);
+          var minKey = radialKeys[0], maxKey = radialKeys[0];
+          radialKeys.forEach(function (k) {
+            if (byRadial[k] < byRadial[minKey]) minKey = k;
+            if (byRadial[k] > byRadial[maxKey]) maxKey = k;
+          });
+          function distToCenter(k) {
+            var p = k.split(",").map(Number);
+            return Math.hypot(p[0] - (textCols + 3) / 2 + 2, p[1] - 3); // 中心列 ≈ (cols-1)/2
+          }
+          line(distToCenter(minKey) < distToCenter(maxKey),
+            "④ sweep=radial：离中心近的格位先亮",
+            "最近 " + byRadial[minKey] + "ms @col" + minKey.split(",")[0] + " / 最远 " + byRadial[maxKey] + "ms @col" + maxKey.split(",")[0]);
+          var dis1 = delays(DotMatrix.create(ITEMS, { sweep: "dissolve" }));
+          var dis2 = delays(DotMatrix.create(ITEMS, { sweep: "dissolve" }));
+          var uniq = {}; var cnt = 0;
+          for (var k in dis1) { if (uniq[dis1[k]] === undefined) { uniq[dis1[k]] = 1; cnt++; } }
+          line(cnt > 3, "④ sweep=dissolve：相位分散（非线性扫掠）", cnt + " 种不同相位");
+          line(JSON.stringify(dis1) === JSON.stringify(dis2), "④ sweep=dissolve 确定性（同 seed 同结果）");
+          var dis3 = delays(DotMatrix.create(ITEMS, { sweep: "dissolve", staggerMs: 40 }));
+          line(JSON.stringify(dis1) !== JSON.stringify(dis3), "④ sweep=dissolve 受 staggerMs 影响");
+
+          /* ⑤ 余晖 */
+          var p = mount("d", ITEMS, { sweep: "diag", persistence: { ms: 120, opacity: 0.3 } });
+          var items_ = p.querySelectorAll(".dm-item:not(.dm-after)").length;
+          var afters = p.querySelectorAll(".dm-after").length;
+          line(afters === items_, "⑤ 余晖副本数 = 动画点数", afters + " / " + items_);
+          var firstItem = p.querySelector(".dm-item:not(.dm-after)");
+          var firstAfter = p.querySelector(".dm-after");
+          line(delayOf(firstAfter) - delayOf(firstItem) === 120, "⑤ 余晖延后 120ms",
+            delayOf(firstItem) + " → " + delayOf(firstAfter));
+          line(/\.dm-n3 \.dm-after \{ fill-opacity: 0.3; \}/.test(css(p)), "⑤ 余晖用 fill-opacity 变暗（不干扰 keyframes）");
+          line(/prefers-reduced-motion[\s\S]*?\.dm-after \{ opacity: 0; \}/.test(css(p)), "⑤ reduced-motion 下余晖关闭");
+
+          /* ⑥ 待机 */
+          var idle = mount("e", ITEMS, { state: "idle", gutter: { heartbeat: true } });
+          line(idle.querySelectorAll(".dm-item").length === 0, "⑥ 待机态不显示内容（无动画点）");
+          line(idle.querySelectorAll(".dm-glitch").length === 0, "⑥ 待机态不产生错点");
+          var pulses = idle.querySelectorAll(".dm-idle");
+          line(pulses.length === textCols, "⑥ 中间行 " + textCols + " 个脉冲点", pulses.length + " 个");
+          line(pulses.length > 1 && delayOf(pulses[0]) === 0 && delayOf(pulses[1]) === 40,
+            "⑥ 脉冲按列错峰 40ms", delayOf(pulses[0]) + " / " + delayOf(pulses[1]));
+          line(idle.querySelectorAll(".dm-hb").length === 3, "⑥ 待机时指示列仍工作");
+
+          /* ⑦ 开机自检 + 字模扩展 */
+          var boot = mount("f", ITEMS, { boot: true });
+          line(boot.getAttribute("class").indexOf("dm-boot") >= 0, "⑦ boot → 根节点带 dm-boot", boot.getAttribute("class"));
+          var offs = boot.querySelectorAll(".dm-off");
+          /* .dm-off 只包含「没被任何组点亮」的格子，所以第 n 个不一定是第 n 列 —— 按列号核对 */
+          var bootOk = Array.prototype.every.call(offs, function (e) { return delayOf(e) === colOf(e) * 18; });
+          line(bootOk, "⑦ 每个底点的自检延迟 = 列号 × 18ms（逐列扫过）",
+            offs.length + " 个底点，首列 " + delayOf(offs[0]) + "ms");
+          line(/@keyframes dm-boot-3/.test(css(boot)), "⑦ 自检 keyframes 存在");
+          var glyphs = "♥★♪✓●■↑↓→←:/%+!=@#*()'_,?!".split("");
+          var missing = glyphs.filter(function (ch) { return !DotMatrix.FONT[ch]; });
+          line(missing.length === 0, "⑦ 字模扩展：新增 " + glyphs.length + " 个字形全部收录",
+            missing.length ? "缺 " + missing.join("") : "OK");
+          var gsvg = DotMatrix.create(["♥★♪✓"], {});
+          line(gsvg.querySelectorAll(".dm-item,.dm-both").length > 0, "⑦ 图标字形能点亮",
+            gsvg.querySelectorAll(".dm-item,.dm-both").length + " 个亮点");
+          var space = DotMatrix.create(["A B"], {});
+          line(space.querySelectorAll("circle").length === DotMatrix.create(["AB "], {}).querySelectorAll("circle").length,
+            "⑦ 空格占 1 格宽度（与显式空格字模一致）");
+
+          /* ⑧ 无障碍 */
+          var al = DotMatrix.create(ITEMS, { label: "累计 tokens 6.63B", lang: "zh-CN" });
+          line(al.getAttribute("aria-label") === "累计 tokens 6.63B", "⑧ label 覆盖 aria-label", al.getAttribute("aria-label"));
+          line(al.getAttribute("lang") === "zh-CN", "⑧ lang 写入根节点");
+          line(def.getAttribute("aria-label") === "STRIVE / 6.63B / 04Ting." && def.getAttribute("lang") === null,
+            "⑧ 未传 label/lang 时保持原行为");
+
+          lines.push("");
+          lines.push(failed === 0
+            ? '<span class="ok">全部通过</span> —— 视觉/状态参数语义正确，且默认参数不引入任何变化。'
+            : '<span class="bad">' + failed + " 项失败</span>");
+          document.title = (failed === 0 ? "PASS · " : "FAIL · ") + "视觉/状态参数探针";
+        } catch (e) {
+          lines.push('<span class="bad">探针异常</span> ' + e.message + "\n" + (e.stack || ""));
+          document.title = "FAIL · 视觉/状态参数探针";
+        }
+        out.innerHTML = lines.join("\n");
+      })();
+    </script>
+  </body>
+</html>
