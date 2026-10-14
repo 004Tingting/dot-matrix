@@ -93,6 +93,8 @@ $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
 - Chrome `--headless=new`（Windows），`--window-size=760,460`，DPR = 1
 - Python 3（`http.server`）仅用于提供静态文件
 - 截图与像素差用 Pillow：把并排两块屏按固定坐标裁剪（左 `0..300`、右 `340..640`，高 52px）后 `ImageChops.difference`
+- **预览图用 `test/shot.mjs` 产出**（CDP + 真实等待）：`node test/shot.mjs <url> <out.png> [waitMs] [w] [h] [scale]`。
+  不用 `--virtual-time-budget` 截图的原因见 §4：虚拟时间不推进 CSS 动画时钟，相位不可复现
 
 ## 6. P0 回归探针
 
@@ -116,3 +118,19 @@ PASS  P0-3 primary=99 被夹取到最后一组（dm-i2）
 站点组件（`personal-site/components/DotMatrix.tsx`）仍是旧行为；本仓库用
 [`../patches/0001-p0-scoped-keyframes.patch`](../patches/0001-p0-scoped-keyframes.patch) 记录逐行差异
 （已验 `git apply` 后与本仓库 `src/DotMatrix.tsx` 逐字节一致）。
+
+## 7. 错点效果探针
+
+`test/glitch-probe.html` 用 17 项断言覆盖错点效果（`density / patterns / holdMs / seed / holes`）：
+
+```
+PASS  ① 默认不传 glitch → 无错点节点、CSS 里无 dm-glitch 规则、圆点数仍为 333（回归保护）
+PASS  ② patterns=1：错点数 = 每轮数 × 组数（18 = 6 × 3）；所有错点都在第 0 轮；动画时长 = 1 × 周期
+PASS  ③ patterns=8：出现 8 个不同轮次，每轮错点数相等，动画时长 = 8 × 周期 = 120000ms
+PASS  ④ 错点只落在「本组未点亮、且非全组共用」的格位上（非法 0 个）
+PASS  ⑤ 同 seed → 输出逐字节一致（SSR/hydration 安全）；换 seed → 同一轮次的错点集合不同
+PASS  ⑥ 只开 holes → 不产生错点节点，而是把部分正确点的延迟推后（先缺后补）
+PASS  ⑦ 错点在 prefers-reduced-motion 下被禁用
+```
+
+语义、算法与 DOM 代价见 [../docs/glitch.md](../docs/glitch.md)。

@@ -134,6 +134,62 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
 }`;
   }
 
+  /** 确定性伪随机（mulberry32）——与 src/DotMatrix.tsx 一致，保证同 seed 同输出 */
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /** 原地 Fisher–Yates 洗牌 */
+  function shuffle(arr, rnd) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(rnd() * (i + 1));
+      var t = arr[i];
+      arr[i] = arr[j];
+      arr[j] = t;
+    }
+    return arr;
+  }
+
+  function normalizeGlitch(g) {
+    var o = typeof g === "number" ? { density: g } : g || {};
+    var density = Math.min(1, Math.max(0, o.density == null ? 0 : o.density));
+    var holes = Math.min(1, Math.max(0, o.holes == null ? 0 : o.holes));
+    return {
+      on: density > 0 || holes > 0,
+      density: density,
+      holes: holes,
+      patterns: Math.max(1, Math.round(o.patterns == null ? 1 : o.patterns)),
+      holdMs: Math.max(0, Math.round(o.holdMs == null ? 260 : o.holdMs)),
+      seed: Math.round(o.seed == null ? 1 : o.seed) >>> 0,
+      className: o.className,
+    };
+  }
+
+  /** 错点：@keyframes 按 (组数, 轮次数) 命名并加 .dm-n{n} 作用域；规则同 src/DotMatrix.tsx */
+  function buildGlitchCss(n, effP, holdMs, cycle) {
+    var dur = effP * cycle;
+    var g = Math.min(99, (holdMs / dur) * 100);
+    var gName = "dm-glitch-" + n + "-" + effP;
+    return `@keyframes ${gName} {
+  0% { opacity: 1; }
+  ${(g * 0.45).toFixed(4)}% { opacity: 0.25; }
+  ${(g * 0.72).toFixed(4)}% { opacity: 0.9; }
+  ${g.toFixed(4)}% { opacity: 0; }
+  100% { opacity: 0; }
+}
+.dm-n${n} .dm-glitch { fill: var(--dm-glitch-ink, var(--color-ink)); opacity: 0; animation: ${gName} ${dur}ms linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .dm-n${n} .dm-glitch { animation: none; opacity: 0; }
+}`;
+  }
+
   function dot(cx, cy, className, delayMs) {
     var c = el("circle");
     c.setAttribute("cx", cx);
@@ -147,9 +203,10 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
   /**
    * 生成点阵屏 SVG 元素。
    * @param {string[]} items 轮换显示的内容（渲染自动大写；建议 ≤7 字符，超长整屏按宽度缩放）
-   * @param {{primary?:number,title?:string,className?:string,animate?:"auto"|"always"|"never"}} [options]
+   * @param {{primary?:number,title?:string,className?:string,animate?:"auto"|"always"|"never",glitch?:object|number}} [options]
    *        primary — prefers-reduced-motion 时定格显示的组下标（自动夹取到 [0, 组数-1]）
    *        animate — 单组（组数 = 1）时的策略：auto = 静止（默认）/ always = 单组也带闪 / never = 强制静止
+   *        glitch  — 错点效果：{ density, patterns, holdMs, seed, holes, className }（默认关闭）
    */
   function create(items, options) {
     options = options || {};
@@ -168,6 +225,80 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
     var cellSets = list.map(function (s) {
       return litCells(s, cols);
     });
+    var gl = normalizeGlitch(options.glitch);
+    var cycle = n * ITEM_MS;
+
+    /* ---------- 错点：选点 + 轮次（与 src/DotMatrix.tsx 同算法） ---------- */
+    var glitchDots = [];
+    var glitchCss = "";
+    var victimShift = {}; // cell * n + k → 额外延迟（缺孔）
+    if (gl.on) {
+      var rnd = mulberry32(gl.seed);
+      var perCycle = Math.max(1, Math.round(gl.density * cols * ROWS));
+      var cands = [];
+      for (var gk = 0; gk < n; gk++) {
+        var cand = [];
+        for (var gc = 0; gc < cols; gc++) {
+          for (var gr = 0; gr < ROWS; gr++) {
+            var gcell = gc * ROWS + gr;
+            if (cellSets[gk].has(gcell)) continue;
+            var shared = true;
+            for (var gj = 0; gj < n; gj++) {
+              if (!cellSets[gj].has(gcell)) {
+                shared = false;
+                break;
+              }
+            }
+            if (!shared) cand.push(gcell);
+          }
+        }
+        cands.push(shuffle(cand, rnd));
+      }
+      var minCand = Infinity;
+      for (var mi = 0; mi < cands.length; mi++) minCand = Math.min(minCand, cands[mi].length);
+      if (!isFinite(minCand)) minCand = 0;
+      var effP = Math.max(1, Math.min(gl.patterns, Math.floor(minCand / perCycle) || 1));
+
+      if (gl.density > 0 && effP > 0) {
+        for (var k2 = 0; k2 < n; k2++) {
+          var pool = Math.min(cands[k2].length, perCycle * effP);
+          for (var pi = 0; pi < pool; pi++) {
+            var pcell = cands[k2][pi];
+            var pc = Math.floor(pcell / ROWS);
+            var pr = pcell % ROWS;
+            glitchDots.push(
+              dot(
+                (pc + 0.5) * PITCH,
+                (pr + 0.5) * PITCH,
+                `dm-glitch dm-g${k2}${gl.className ? " " + gl.className : ""}`,
+                (pi % effP) * cycle + k2 * ITEM_MS + pc * COL_STEP_MS
+              )
+            );
+          }
+        }
+      }
+
+      if (gl.holes > 0) {
+        for (var hk = 0; hk < n; hk++) {
+          var own = [];
+          cellSets[hk].forEach(function (hcell) {
+            var sh = true;
+            for (var hj = 0; hj < n; hj++) {
+              if (!cellSets[hj].has(hcell)) {
+                sh = false;
+                break;
+              }
+            }
+            if (!sh) own.push(hcell);
+          });
+          shuffle(own, rnd);
+          var hcount = Math.max(1, Math.round(gl.holes * own.length));
+          for (var hi = 0; hi < Math.min(hcount, own.length); hi++) victimShift[own[hi] * n + hk] = gl.holdMs;
+        }
+      }
+
+      if (glitchDots.length > 0) glitchCss = buildGlitchCss(n, effP, gl.holdMs, cycle);
+    }
 
     var svg = el("svg");
     svg.setAttribute("viewBox", `0 0 ${cols * PITCH} ${ROWS * PITCH}`);
@@ -177,7 +308,7 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
     svg.setAttribute("aria-label", list.join(" / "));
 
     var styleEl = el("style");
-    styleEl.textContent = buildCss(n);
+    styleEl.textContent = buildCss(n) + glitchCss;
     svg.appendChild(styleEl);
 
     if (options.title) {
@@ -202,13 +333,15 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
         } else {
           for (var j = 0; j < owners.length; j++) {
             var o = owners[j];
+            var shift = victimShift[cell * n + o] || 0;
             svg.appendChild(
-              dot(cx, cy, `dm-item dm-i${o}${o === primary ? " dm-primary" : ""}`, o * ITEM_MS + c * COL_STEP_MS)
+              dot(cx, cy, `dm-item dm-i${o}${o === primary ? " dm-primary" : ""}`, o * ITEM_MS + c * COL_STEP_MS + shift)
             );
           }
         }
       }
     }
+    for (var gi = 0; gi < glitchDots.length; gi++) svg.appendChild(glitchDots[gi]);
     return svg;
   }
 
@@ -232,12 +365,22 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
       var title = host.getAttribute("data-title");
       var className = host.getAttribute("data-class");
       var animate = host.getAttribute("data-animate");
+      var glitchAttr = host.getAttribute("data-glitch");
+      var glitch;
+      if (glitchAttr) {
+        try {
+          glitch = JSON.parse(glitchAttr);
+        } catch (e) {
+          glitch = Number(glitchAttr) || undefined;
+        }
+      }
       host.appendChild(
         create(items, {
           primary: primary === null ? undefined : Number(primary),
           title: title || undefined,
           className: className || undefined,
           animate: animate || undefined,
+          glitch: glitch,
         })
       );
       host.setAttribute("data-dm-mounted", "1");
@@ -249,6 +392,8 @@ ${p}.dm-off { fill: var(--color-ink); opacity: 0.13; }
     mount: mount,
     litCells: litCells,
     buildCss: buildCss,
+    buildGlitchCss: buildGlitchCss,
+    mulberry32: mulberry32,
     FONT: FONT,
     ROWS: ROWS,
     COLS_PER_CHAR: COLS_PER_CHAR,

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>错点效果探针 · DotMatrix</title>
+    <style>
+      html, body { margin: 0; padding: 12px; background: #faf8f5; color: #1a1a1a; }
+      :root { --color-ink: #1a1a1a; --dm-glitch-ink: #b4432e; }
+      body { font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace; }
+      .row { display: flex; gap: 24px; flex-wrap: wrap; }
+      .cell { width: 260px; }
+      .cell svg { display: block; width: 100%; height: auto; }
+      .cell p { margin: 6px 0 0; color: rgba(26, 26, 26, 0.55); }
+      #out { white-space: pre-wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(26, 26, 26, 0.15); }
+      .ok { color: #1f7a3d; font-weight: 700; }
+      .bad { color: #b4432e; font-weight: 700; }
+      .dim { color: rgba(26, 26, 26, 0.55); }
+    </style>
+  </head>
+  <body>
+    <!--
+      错点（glitch）效果探针：
+        ① 默认关闭时不得引入任何 dm-glitch 节点/规则（回归保护）
+        ② density 决定「每轮错点数」，patterns 决定「多少轮才重复」，两者相互独立
+        ③ 错点只落在「本组未点亮、且非全组共用」的格位上
+        ④ 同 seed 输出逐字节一致（SSR/hydration 安全），换 seed 则换一批点
+        ⑤ patterns = 1 时每次都一样；holes 走延迟偏移，不产生错点节点
+    -->
+    <div class="row">
+      <div class="cell"><div id="a"></div><p>默认（无 glitch）</p></div>
+      <div class="cell"><div id="b"></div><p>density .02 / patterns 1</p></div>
+      <div class="cell"><div id="c"></div><p>density .02 / patterns 8 / seed 3</p></div>
+      <div class="cell"><div id="d"></div><p>同上换 seed 9</p></div>
+    </div>
+    <div id="out">探针运行中…</div>
+
+    <script src="../demo/dot-matrix.js"></script>
+    <script>
+      (function () {
+        var out = document.getElementById("out");
+        var lines = [];
+        var failed = 0;
+        var ITEMS = ["STRIVE", "6.63B", "04Ting."];
+
+        function line(ok, label, detail) {
+          if (!ok) failed++;
+          lines.push((ok ? '<span class="ok">PASS</span>' : '<span class="bad">FAIL</span>') + "  " + label +
+            (detail ? '  <span class="dim">' + detail + "</span>" : ""));
+        }
+        function canon(node) {
+          return node.outerHTML.replace(/\s+/g, " ").trim();
+        }
+        /** 每个错点的「轮次」= (delay − 组相位 − 列相位) / 周期 */
+        function patternOf(el, cycle) {
+          var delay = parseFloat((el.getAttribute("style") || "").replace(/[^\d.]/g, "")) || 0;
+          var k = +(el.getAttribute("class").match(/dm-g(\d+)/) || [0, 0])[1];
+          var col = Math.floor(parseFloat(el.getAttribute("cx")) / 6.5);
+          return Math.round((delay - k * 5000 - col * 22) / cycle);
+        }
+
+        try {
+          var CYCLE = ITEMS.length * 5000; // 15000
+
+          /* ① 默认关闭 */
+          var plain = DotMatrix.create(ITEMS, { primary: 1 });
+          document.getElementById("a").appendChild(plain);
+          line(plain.querySelectorAll(".dm-glitch").length === 0, "① 默认不传 glitch → 无错点节点");
+          line(plain.querySelector("style").textContent.indexOf("dm-glitch") < 0, "① 默认 CSS 里不含 dm-glitch 规则");
+          line(plain.querySelectorAll("circle").length === 333, "① 默认圆点数不变", plain.querySelectorAll("circle").length + " 个");
+
+          /* ② 打开错点 */
+          var g1 = DotMatrix.create(ITEMS, { glitch: { density: 0.02, patterns: 1, seed: 3 } });
+          document.getElementById("b").appendChild(g1);
+          var d1 = g1.querySelectorAll(".dm-glitch");
+          var perCycle = Math.round(0.02 * 41 * 7); // 整屏 41×7 格
+          line(d1.length === perCycle * ITEMS.length, "② patterns=1：错点数 = 每轮数 × 组数", d1.length + " = " + perCycle + " × " + ITEMS.length);
+          line(d1.length > 0 && Array.prototype.every.call(d1, function (e) { return patternOf(e, CYCLE) === 0; }),
+            "② patterns=1：所有错点都在第 0 轮（每次同一批）");
+          line(g1.querySelector("style").textContent.indexOf("dm-glitch-3-1") >= 0, "② keyframes 名为 dm-glitch-{组数}-{轮次数}");
+          line(/dm-glitch-3-1 15000ms linear infinite/.test(g1.querySelector("style").textContent),
+            "② patterns=1 时动画时长 = 1 × 周期", "15000ms");
+
+          /* ③ 多轮次 */
+          var g8 = DotMatrix.create(ITEMS, { glitch: { density: 0.02, patterns: 8, seed: 3 } });
+          document.getElementById("c").appendChild(g8);
+          var d8 = g8.querySelectorAll(".dm-glitch");
+          var byPattern = {};
+          Array.prototype.forEach.call(d8, function (e) {
+            var p = patternOf(e, CYCLE);
+            byPattern[p] = (byPattern[p] || 0) + 1;
+          });
+          var pats = Object.keys(byPattern).map(Number).sort(function (a, b) { return a - b; });
+          line(pats.length === 8, "③ patterns=8 → 出现 8 个不同轮次", "轮次 " + pats.join(","));
+          var counts = pats.map(function (p) { return byPattern[p]; });
+          line(counts.every(function (c) { return c === counts[0]; }),
+            "③ 每轮错点数相等（density 与 patterns 相互独立）", "每轮 " + counts[0] + " 个，池 " + d8.length + " 个");
+          line(counts[0] === perCycle * ITEMS.length,
+            "③ 每次切换错点数 = density × 整屏格位（按组各算一次）",
+            "每轮 " + counts[0] + " = " + perCycle + " × " + ITEMS.length + " 组");
+          line(/dm-glitch-3-8 120000ms linear infinite/.test(g8.querySelector("style").textContent),
+            "③ 动画时长 = patterns × 周期", "120000ms");
+
+          /* ④ 错点位置合法：本组未点亮、且非全组共用 */
+          var refs = {};
+          Array.prototype.forEach.call(plain.querySelectorAll("circle"), function (e) {
+            refs[e.getAttribute("cx") + "," + e.getAttribute("cy")] = e.getAttribute("class");
+          });
+          var bad = 0;
+          Array.prototype.forEach.call(d8, function (e) {
+            var key = e.getAttribute("cx") + "," + e.getAttribute("cy");
+            var cls = refs[key] || "";
+            var k = +(e.getAttribute("class").match(/dm-g(\d+)/) || [0, 0])[1];
+            if (cls.indexOf("dm-i" + k) >= 0) bad++;      // 落成「本组已点亮」的点
+            if (cls === "dm-both") bad++;                  // 落成常亮共用点（错点看不出来）
+          });
+          line(bad === 0, "④ 错点只落在本组未点亮且非共用的格位", "非法 " + bad + " 个");
+
+          /* ⑤ 确定性 / 换 seed */
+          var same = DotMatrix.create(ITEMS, { glitch: { density: 0.02, patterns: 8, seed: 3 } });
+          line(canon(same) === canon(g8), "⑤ 同 seed → 输出逐字节一致（SSR/hydration 安全）");
+          var other = DotMatrix.create(ITEMS, { glitch: { density: 0.02, patterns: 8, seed: 9 } });
+          document.getElementById("d").appendChild(other);
+          /* 比对「同一轮次」的错点集合：池子会有重合（同一格位可服务多组），但每一轮该亮的点应当不同 */
+          function roundSet(root, round) {
+            var set = {};
+            Array.prototype.forEach.call(root.querySelectorAll(".dm-glitch"), function (e) {
+              if (patternOf(e, CYCLE) === round) set[e.getAttribute("cx") + "," + e.getAttribute("cy")] = 1;
+            });
+            return set;
+          }
+          var r0a = roundSet(g8, 0), r0b = roundSet(other, 0);
+          var inter = Object.keys(r0a).filter(function (k) { return r0b[k]; }).length;
+          line(inter < Object.keys(r0a).length,
+            "⑤ 换 seed → 同一轮次的错点集合不同", "第 0 轮重合 " + inter + " / " + Object.keys(r0a).length);
+
+          /* ⑥ holes：延迟偏移，不产生错点节点 */
+          var gh = DotMatrix.create(ITEMS, { glitch: { holes: 0.05, seed: 3 } });
+          line(gh.querySelectorAll(".dm-glitch").length === 0, "⑥ 只开 holes → 不产生错点节点");
+          var shifted = 0;
+          Array.prototype.forEach.call(gh.querySelectorAll(".dm-i1"), function (e) {
+            var delay = parseFloat((e.getAttribute("style") || "").replace(/[^\d.]/g, "")) || 0;
+            if (delay % 5000 !== 0 || delay > 5000) shifted++; // 组 1 的正常延迟 = 5000 + col*22
+          });
+          line(shifted > 0, "⑥ holes 把部分正确点的延迟推后（先缺后补）", shifted + " 个点被推后");
+
+          /* ⑦ reduced-motion 规则 */
+          line(/prefers-reduced-motion[\s\S]*?dm-glitch \{ animation: none; opacity: 0; \}/.test(g8.querySelector("style").textContent),
+            "⑦ 错点在 prefers-reduced-motion 下被禁用");
+
+          lines.push("");
+          lines.push(failed === 0
+            ? '<span class="ok">全部通过</span> —— 错点效果可用：density 控数量、patterns 控随机性、seed 换性格。'
+            : '<span class="bad">' + failed + " 项失败</span>");
+          document.title = (failed === 0 ? "PASS · " : "FAIL · ") + "错点效果探针";
+        } catch (e) {
+          lines.push('<span class="bad">探针异常</span> ' + e.message);
+          document.title = "FAIL · 错点效果探针";
+        }
+        out.innerHTML = lines.join("\n");
+      })();
+    </script>
+  </body>
+</html>

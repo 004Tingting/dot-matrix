@@ -16,7 +16,7 @@
 | P2-1 | 每点一个 DOM 节点 | 333 节点 / 28.9 KB；主线程 39 ms/5 s | 待办：合批 path：−77% 节点、−65% 标记、−56% 主线程（已实测像素等价） |
 | P2-2 | 动画永不停 | 后台标签页/离屏仍耗电 | 待办：IntersectionObserver + `visibilitychange` |
 | P2-3 | 参数写死 | 时长/相位/点形/配色都改不了 | 待办：参数化 |
-| P2-4 | 交互与动效单一 | 无法 hover 读数、无翻牌/滚动 | 按需 |
+| P2-4 | 交互与动效单一 | 无法 hover 读数、无翻牌/滚动 | 按需（**错点效果**已实现，见 [glitch.md](glitch.md)） |
 | P2-5 | 无障碍语义弱 | `aria-label` 是 `"A / B / C"` | 建议改为语义化 label |
 
 > 修复只改了 `src/DotMatrix.tsx` 与 `demo/dot-matrix.js`（两者行为一致）：几何、字模、相位、

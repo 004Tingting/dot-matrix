@@ -114,6 +114,7 @@
 
       /* ---------- 试验台 ---------- */
       .play { display: grid; gap: 14px; grid-template-columns: minmax(220px, 1fr) 120px; margin-top: 20px; }
+      .play--wide { grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr); }
       .play label { display: block; color: var(--color-muted); font-size: 11px; margin-bottom: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
       textarea, input[type="number"], select {
         width: 100%;
@@ -125,6 +126,9 @@
         font-size: 13px;
         border-radius: 2px;
       }
+      input[type="range"] { width: 100%; accent-color: var(--color-accent); margin: 0 0 4px; }
+      .slabel { display: flex; justify-content: space-between; gap: 8px; color: var(--color-muted); font-size: 11px; margin: 10px 0 4px; letter-spacing: 0.06em; text-transform: uppercase; }
+      .slabel b { color: var(--color-ink); font-weight: 600; letter-spacing: 0; text-transform: none; }
       textarea { min-height: 108px; resize: vertical; line-height: 1.6; }
       .actions { display: flex; gap: 10px; margin-top: 14px; }
       .btn {
@@ -288,6 +292,39 @@
           </div>
           <pre id="play-code"></pre>
         </section>
+
+        <section class="card">
+          <h2><em>⑦</em>错点（glitch）· 可调</h2>
+          <p class="note">
+            每次切换后多出一批「不属于本内容」的亮点，闪烁一下后熄灭——模拟 LED 屏刷新残留的鬼点。
+            <strong>density</strong> 管错点<em>多少</em>，<strong>patterns</strong> 管<em>随机性</em>
+            （错点集合多少轮才重复一次），<strong>holdMs</strong> 是错点存活时长，<strong>seed</strong> 换一组「性格」。
+            纯 CSS + 确定性伪随机：no-JS、SSR 与客户端输出一致（见 <code>docs/glitch.md</code>）。
+          </p>
+          <div class="play play--wide">
+            <div>
+              <div class="slabel"><span>density 占整屏格位</span><b id="gl-density-v">2.5%</b></div>
+              <input id="gl-density" type="range" min="0" max="0.12" step="0.005" value="0.025" />
+              <div class="slabel"><span>patterns 多少轮重复</span><b id="gl-patterns-v">8</b></div>
+              <input id="gl-patterns" type="range" min="1" max="24" step="1" value="8" />
+              <div class="slabel"><span>holdMs 错点存活</span><b id="gl-hold-v">300ms</b></div>
+              <input id="gl-hold" type="range" min="60" max="1200" step="20" value="300" />
+            </div>
+            <div>
+              <div class="slabel"><span>seed</span><b id="gl-seed-v">3</b></div>
+              <input id="gl-seed" type="range" min="1" max="40" step="1" value="3" />
+              <div class="slabel"><span>holes 先缺后补</span><b id="gl-holes-v">0%</b></div>
+              <input id="gl-holes" type="range" min="0" max="0.1" step="0.005" value="0" />
+              <div class="actions" style="margin-top: 12px">
+                <button type="button" class="btn" id="gl-roll">换一组（seed +1）</button>
+              </div>
+            </div>
+          </div>
+          <div class="stage stage--paper" style="margin-top: 18px">
+            <div class="dm-host dm-host--aside" id="gl-host"></div>
+          </div>
+          <pre id="gl-code"></pre>
+        </section>
       </main>
 
       <footer>
@@ -356,6 +393,58 @@
         ta.addEventListener("input", render);
         primaryInput.addEventListener("input", render);
         animateSelect.addEventListener("change", render);
+        render();
+      })();
+
+      /* ---------- 错点（glitch）可调面板 ---------- */
+      (function () {
+        var host = document.getElementById("gl-host");
+        var code = document.getElementById("gl-code");
+        var ids = ["density", "patterns", "hold", "seed", "holes"];
+        var el = {};
+        ids.forEach(function (k) { el[k] = document.getElementById("gl-" + k); });
+
+        function fmt(k, v) {
+          if (k === "density" || k === "holes") return (v * 100).toFixed(1).replace(/\.0$/, "") + "%";
+          if (k === "hold") return v + "ms";
+          return String(v);
+        }
+
+        function render() {
+          var v = {
+            density: Number(el.density.value),
+            patterns: Number(el.patterns.value),
+            holdMs: Number(el.hold.value),
+            seed: Number(el.seed.value),
+            holes: Number(el.holes.value),
+          };
+          ids.forEach(function (k) {
+            document.getElementById("gl-" + k + "-v").textContent = fmt(k, v[k === "hold" ? "holdMs" : k]);
+          });
+
+          host.innerHTML = "";
+          host.appendChild(
+            DotMatrix.create(["STRIVE", "6.63B", "04Ting."], {
+              primary: 1,
+              glitch: v,
+            })
+          );
+          var svg = host.querySelector("svg");
+          var glitchN = svg.querySelectorAll(".dm-glitch").length;
+          var total = svg.querySelectorAll("circle").length;
+          var perCycle = Math.max(1, Math.round(v.density * 41 * 7));
+          var dur = Number((svg.querySelector("style").textContent.match(/dm-glitch-\d+-(\d+) /) || [0, v.patterns])[1]);
+          code.innerHTML =
+            "DotMatrix.create([<b>\"STRIVE\",\"6.63B\",\"04Ting.\"</b>], { glitch: <b>" + JSON.stringify(v) + "</b> })" +
+            "\n// 每次切换约 <b>" + perCycle + "</b> 个错点（×3 组）· 错点节点 <b>" + glitchN + "</b> 个 / 圆点共 <b>" + total + "</b> 个" +
+            "\n// 错点集合每 <b>" + dur + "</b> 轮切换重复一次（= " + (dur * 15) + "s）· 错点动画时长 <b>" + dur * 15000 + "ms</b>";
+        }
+
+        ids.forEach(function (k) { el[k].addEventListener("input", render); });
+        document.getElementById("gl-roll").addEventListener("click", function () {
+          el.seed.value = String((Number(el.seed.value) % 40) + 1);
+          render();
+        });
         render();
       })();
     </script>

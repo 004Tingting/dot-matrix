@@ -2,6 +2,7 @@
 
 5×7 LED 字模点阵屏：**纯 SVG + CSS 动画，零依赖、无构建**。多组内容按「组相位 + 列相位（22ms）」错峰亮灭，
 切换时旧组熄灭、新组亮起、两股扫掠同时进行——点阵小点在屏内「重组」。
+另有可调的**错点（glitch）效果**：切换后残留一批鬼点，第二次闪烁才纠正。
 
 提取自个人站点 `personal-site` 首页侧栏 Token 卡（2026-10-15 上线），本目录是**只含点阵屏**的独立可上传版本。
 
@@ -9,9 +10,11 @@
 ![累计 tokens](preview/value.png)
 ![署名](preview/tag.png)
 ![重组扫掠中](preview/swap.png)
+![错点效果](preview/glitch.png)
 
-> 上图是站点上的实拍（`.workbuddy/verify/v2-matrix-*.png`，深色主题 300px 宽侧栏卡）；浅色主题见
+> 前四张是站点上的实拍（`.workbuddy/verify/v2-matrix-*.png`，深色主题 300px 宽侧栏卡）；浅色主题见
 > [preview/light-word.png](preview/light-word.png)、[preview/light-value.png](preview/light-value.png)。
+> 最后一张是错点效果与对照（左：`density .03 / patterns 8`，错点染红便于观察）。
 > 完整演示页截图：[preview/demo-light.png](preview/demo-light.png) · [preview/demo-dark.png](preview/demo-dark.png)
 
 ---
@@ -20,21 +23,25 @@
 
 ```
 dot-matrix/
-├─ src/DotMatrix.tsx          React 组件（零依赖，注入 <style>，可 SSR；含 P0 修复）
+├─ src/DotMatrix.tsx          React 组件（零依赖，注入 <style>，可 SSR；含 P0 修复 + 错点效果）
 ├─ demo/
-│  ├─ index.html              零构建演示页（双击即可打开，含试验台）
+│  ├─ index.html              零构建演示页（双击即可打开，含试验台与错点调参面板）
 │  └─ dot-matrix.js           同一算法的 vanilla JS 实现（window.DotMatrix）
 ├─ patches/
-│  └─ 0001-p0-scoped-keyframes.patch   站点版 → 修复版的 diff（可 git apply）
+│  ├─ 0001-p0-scoped-keyframes.patch   站点版 → P0 修复版的 diff（可 git apply）
+│  └─ 0002-glitch-effect.patch         P0 修复版 → 带错点效果的 diff（可叠加）
 ├─ test/
 │  ├─ reference-home-aside.svg  站点 SSG 的真实输出（对照基准，335 节点）
 │  ├─ compare.html              站点版 vs 本仓库：DOM 逐节点 + 像素对照
-│  ├─ compare-result.png        校验结果截图（17 项全 PASS）
+│  ├─ compare-result.png        校验结果截图
 │  ├─ p0-regression.html        P0 回归探针（多实例时序 / 单组策略 / primary 夹取）
+│  ├─ glitch-probe.html         错点效果探针（数量 / 轮次 / 确定性 / reduced-motion）
 │  ├─ phase-probe.html          动画相位探针（核对组相位/列相位时序）
+│  ├─ shot.mjs                  确定性截图工具（CDP + 真实等待，预览图由它产出）
 │  └─ verify.md                 复跑步骤与结论
 ├─ docs/
 │  ├─ integration.md          在 personal-site 里的接入方式与设计取舍
+│  ├─ glitch.md               错点效果：参数语义、轮次算法、DOM 代价、时间轴
 │  └─ improvements.md         可改进点：实测数据 + 优先级 + 修法（P0 已修，P1/P2 待办）
 ├─ preview/                  预览截图
 └─ .github/workflows/pages.yml  可选：把 demo/ 发到 GitHub Pages
@@ -58,8 +65,8 @@ cd personal-site
 git apply /path/to/dot-matrix/patches/0001-p0-scoped-keyframes.patch
 ```
 
-`patches/0001-*.patch` 已用 `git apply --check` + 应用后哈希比对验证过：应用结果与本仓库
-`src/DotMatrix.tsx` **逐字节一致**（SHA-256 `296FCEE8…`）。
+`patches/0001-*.patch` 已用 `git apply --check` + 应用后哈希比对验证过：单独应用即得 P0 修复版；
+再叠加 `patches/0002-glitch-effect.patch` 与本仓库 `src/DotMatrix.tsx` **逐字节一致**。
 
 ## 快速开始
 
@@ -98,8 +105,8 @@ no-JS 照常运转**；`prefers-reduced-motion: reduce` 时定格 `primary` 组�
 <div data-dot-matrix='["STRIVE","6.63B","04Ting."]' data-primary="1" data-title="累计 …"></div>
 ```
 
-直接打开 [`demo/index.html`](demo/index.html) 可看到 6 个示例（原版三组轮换 / 两组互换 / 单组 / 超长文本 /
-字模表 / 可编辑试验台），支持 `?theme=light|dark|auto`。
+直接打开 [`demo/index.html`](demo/index.html) 可看到 7 个示例（原版三组轮换 / 两组互换 / 单组 / 超长文本 /
+字模表 / 可编辑试验台 / **错点效果调参面板**），支持 `?theme=light|dark|auto`。
 
 ### ③ 宿主页面必须提供
 
@@ -125,6 +132,18 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 | `title` | `string` | — | SVG `<title>`，悬停提示（也是无障碍名称的补充） |
 | `className` | `string` | — | 传给根 `<svg>` 的 class（作用域类 `dm-n{n}` 会自动追加） |
 | `animate` | `"auto" \| "always" \| "never"` | `"auto"` | 单组（组数 = 1）时的动画策略：`auto` 静止、`always` 单组也带闪、`never` 强制静止。声明式：`data-animate` |
+| `glitch` | `object \| number` | 关闭 | 错点效果：切换后残留一批鬼点，第二次闪烁才纠正。`number` 等价于 `{ density }`。字段见下 |
+
+**`glitch` 字段**（完整语义与算法见 [docs/glitch.md](docs/glitch.md)）：
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `density` | `0` | 每次切换后错点数**占整屏格位**的比例（「多少」）；`0.02` 在 287 格的屏上 ≈ 6 个/次 |
+| `patterns` | `1` | 错点集合**多少轮切换才重复**（「随机性」）：`1` = 每次都同一批，越大每次越不一样 |
+| `holdMs` | `260` | 错点存活时长（亮起到熄灭）；建议 < 每组时长 |
+| `seed` | `1` | 换一组「性格」；同 seed 输出逐字节一致（SSR/hydration 安全） |
+| `holes` | `0` | 正确点里「先缺后补」的比例（不随 `patterns` 轮换） |
+| `className` | — | 追加到错点元素上的 class；改色推荐 `--dm-glitch-ink` |
 
 无障碍：根节点是 `role="img"`，`aria-label` 为各组以 `" / "` 连接；`title` 另作悬停说明。
 
@@ -142,6 +161,21 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
   组内每个点再按列加 `col × 22ms` 延迟 → 从左到右的扫掠。每组在自己的时段内「带闪点亮 → 长亮 → 带闪熄灭」。
 - **不变式**：同一点的多组圆点叠加，各自按本组相位亮灭，因此切换瞬间必然出现「旧组残影 + 新组初亮」的
   重组感，而共用格位始终常亮。
+
+## 错点效果（glitch）
+
+模拟 LED 屏刷新后残留的鬼点：切换后多出一批「不属于本内容」的亮点，闪烁一下才熄灭。两个旋钮相互独立：
+
+- **`density`** 管「多少」= 每次切换后错点数占整屏格位的比例；
+- **`patterns`** 管「随机性」= 错点集合多少轮切换才重复一次（`1` 每次都一样，越大越不一样）。
+
+做法是**轮次分配**：每个候选点（本组未点亮、且非全组共用的格子）被分到一个轮次 `p ∈ [0, patterns)`，
+只在第 p 轮亮起；错点动画时长 = `patterns × 周期`，因此每轮换一批点、`patterns` 轮后重复，
+而每轮点数恒为 `round(density × 整屏格位)`。全程**不引入 JS**：确定性伪随机（mulberry32）保证
+服务端与客户端算出同一批点，no-JS 照常、`prefers-reduced-motion` 下整体禁用。
+
+代价是 DOM（池 = 每轮点数 × patterns × 组数，`patterns 8 / density .02 / 3 组` ≈ +144 个节点），
+取舍与时间轴见 **[docs/glitch.md](docs/glitch.md)**；想要「永不重复」需要 JS 每轮改 class，该文末有说明。
 
 ## 与站点版本的对照校验
 
@@ -180,8 +214,9 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 
 - 源文件：`personal-site@ba1aa80` 工作树版本（2026-10-15，多组轮换二稿）
   - `components/DotMatrix.tsx` — 站点版 SHA-256 `0F7896CD23B110205DEF4CAF3A9B2B16BF87BA390DDA633F512B7E5282D59221`
-    - 本仓库 `src/DotMatrix.tsx` 在其基础上应用 P0 修复，SHA-256 `296FCEE859659C29652D3A577F1F7C72CC112C4E524F6592BF08C221D709A0D8`
-    - 逐行差异见 [`patches/0001-p0-scoped-keyframes.patch`](patches/0001-p0-scoped-keyframes.patch)（6 个 hunk，+44 / −15 行，已验 `git apply` 后逐字节一致）
+    - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `296FCEE859659C29652D3A577F1F7C72CC112C4E524F6592BF08C221D709A0D8`，6 hunk，+44 / −15）
+    - 再叠 `patches/0002-glitch-effect.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `401D28B641D15EE7CC209911F72DA30E0EA13B9E3F931F486A0F64F85A93510E`，8 hunk，+160 / −2）
+    - 两个 patch 均已验：`git apply` 后与对应版本**逐字节一致**
   - `components/TokenMonitor.tsx` — 首页侧栏 `variant === "aside"` 的接入点
   - `app/globals.css` — 一稿的 `.dm-*` 规则（二稿已改为组件内注入）
 - 许可：[MIT](LICENSE)
