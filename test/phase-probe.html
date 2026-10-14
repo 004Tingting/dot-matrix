@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>相位探针 · DotMatrix</title>
+    <style>
+      html, body { margin: 0; padding: 12px; background: #faf8f5; color: #1a1a1a; }
+      :root { --color-ink: #1a1a1a; }
+      body { font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+      #host { width: 300px; }
+      #host svg { display: block; width: 100%; height: auto; }
+      pre { margin: 12px 0 0; }
+    </style>
+  </head>
+  <body>
+    <!--
+      相位探针：把 dm-i1（第 2 组，即数值组）每个圆点的 getComputedStyle(opacity) 按虚拟时间采样，
+      用于核对「组相位 + 列相位」的动画时序（headless Chrome 的虚拟时间与动画时钟起点并不相同，
+      截图取相位前先用本探针标定偏移）。用法见 test/verify.md。
+    -->
+    <div id="host"></div>
+    <pre id="log">采样中…</pre>
+    <script src="../demo/dot-matrix.js"></script>
+    <script>
+      var host = document.getElementById("host");
+      host.appendChild(DotMatrix.create(["STRIVE", "6.63B", "04TING."], { primary: 1 }));
+
+      var g1 = host.querySelectorAll(".dm-i1");
+      var g0 = host.querySelectorAll(".dm-i0");
+      var log = document.getElementById("log");
+      var lines = ["组数=3 · ITEM_MS=" + DotMatrix.ITEM_MS + "ms · 周期=" + 3 * DotMatrix.ITEM_MS + "ms · dm-i1 圆点=" + g1.length];
+
+      function opacitySum(nodes) {
+        var s = 0;
+        for (var i = 0; i < nodes.length; i++) s += parseFloat(getComputedStyle(nodes[i]).opacity) || 0;
+        return s / (nodes.length || 1);
+      }
+
+      function sample() {
+        var t = performance.now();
+        var a1 = opacitySum(g1);
+        var a0 = opacitySum(g0);
+        lines.push(
+          "t=" + String(Math.round(t)).padStart(5, " ") + "ms   g0=" + a0.toFixed(2) + "   g1=" + a1.toFixed(2) +
+          "   " + (a1 > 0.95 ? "[g1 全亮]" : a1 < 0.05 ? "[g1 全灭]" : "[g1 扫掠中]")
+        );
+        log.textContent = lines.join("\n");
+      }
+
+      var iv = setInterval(sample, 400);
+      setTimeout(function () { clearInterval(iv); }, 16000);
+      sample();
+    </script>
+  </body>
+</html>

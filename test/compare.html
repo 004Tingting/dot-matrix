@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>移植版校验 · DotMatrix</title>
+    <style>
+      /* 布局刻意固定：两个 300px 宽的舞台分别在 x=0 / x=340，y=0 —— 便于截图后按像素对比 */
+      html, body { margin: 0; padding: 0; background: #faf8f5; color: #1a1a1a; }
+      :root { --color-ink: #1a1a1a; }
+      body { font: 12px/1.7 ui-monospace, Menlo, Consolas, monospace; }
+      .pair { display: flex; gap: 40px; align-items: flex-start; }
+      .cell { width: 300px; }
+      .host { width: 300px; }
+      .host svg { display: block; width: 100%; height: auto; }
+      .cap { margin-top: 8px; color: rgba(26, 26, 26, 0.55); }
+      #verdict { margin: 24px 0 0; padding: 12px 14px; border-top: 1px solid rgba(26, 26, 26, 0.15); white-space: pre-wrap; }
+      .pass { color: #1f7a3d; font-weight: 700; }
+      .fail { color: #b4432e; font-weight: 700; }
+      .dim { color: rgba(26, 26, 26, 0.55); }
+    </style>
+  </head>
+  <body>
+    <div class="pair">
+      <div class="cell">
+        <div class="host" id="ref-host"></div>
+        <div class="cap">① 基准：站点 SSG 真实输出（test/reference-home-aside.svg，P0 修复前）</div>
+      </div>
+      <div class="cell">
+        <div class="host" id="port-host"></div>
+        <div class="cap">② 本仓库：demo/dot-matrix.js 现场渲染（含 P0 修复）</div>
+      </div>
+    </div>
+    <div id="verdict">校验中…</div>
+
+    <script src="../demo/dot-matrix.js"></script>
+    <script>
+      (function () {
+        var out = document.getElementById("verdict");
+        var lines = [];
+        var failed = 0;
+
+        function line(ok, label, detail) {
+          if (!ok) failed++;
+          lines.push((ok ? '<span class="pass">PASS</span>' : '<span class="fail">FAIL</span>') + "  " + label + (detail ? '  <span class="dim">' + detail + "</span>" : ""));
+        }
+
+        /** 逐属性比较两个元素（属性名排序后比对，忽略属性顺序） */
+        function attrsOf(node) {
+          return Array.prototype.slice.call(node.attributes)
+            .map(function (a) { return a.name + "=" + a.value; })
+            .sort()
+            .join(" | ");
+        }
+
+        /** 规范化序列化整棵树：与 XML/HTML 序列化器的写法差异（<circle/> vs <circle></circle>）无关 */
+        function canonical(node) {
+          var tag = node.nodeName.toLowerCase();
+          var s = "<" + tag + " " + attrsOf(node) + ">";
+          for (var i = 0; i < node.childNodes.length; i++) {
+            var c = node.childNodes[i];
+            if (c.nodeType === 3) s += c.textContent;
+            else if (c.nodeType === 1) s += canonical(c);
+          }
+          return s + "</" + tag + ">";
+        }
+
+        /** 把整棵树里 P0 修复引入的三处差异抹平：keyframes 名后缀、规则作用域前缀、根 class 里的作用域类 */
+        function normTree(s, n) {
+          return s
+            .split("dm-swap-" + n).join("dm-swap")
+            .split(".dm-n" + n + " ").join("")
+            .replace(/class=([^|>]*)/g, function (_, cls) {
+              return "class=" + cls.split(/\s+/).filter(function (t) { return t && t !== "dm-n" + n; }).join(" ");
+            });
+        }
+
+        /** 是否残留「未作用域」的 .dm-item/.dm-both/.dm-off/.dm-primary 规则（选择器以它开头才算） */
+        function hasUnscopedRule(css) {
+          return /(^|[,}])\s*\.dm-(item|both|off|primary)\s*[,{]/.test(css);
+        }
+
+        /** P0 修复引入的两处差异：keyframes 名带组数后缀、规则加 .dm-n{n} 作用域前缀 */
+        function unscope(css, n) {
+          return css.split("dm-swap-" + n).join("dm-swap").split(".dm-n" + n + " ").join("");
+        }
+        function unscopeClass(cls, n) {
+          return (cls || "").split(/\s+/).filter(function (t) { return t && t !== "dm-n" + n; }).join(" ");
+        }
+
+        fetch("reference-home-aside.svg")
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.text();
+          })
+          .then(function (text) {
+            /* 用 text/html 解析：与浏览器消费站点 SSG 输出（out/index.html）的路径一致，
+               <svg>/<style> 才会落在 SVG 命名空间并被当样式表处理（image/svg+xml 解析会把 <style> 当文本）。 */
+            var refDoc = new DOMParser().parseFromString('<div id="dm-wrap">' + text + "</div>", "text/html");
+            var ref = refDoc.querySelector("#dm-wrap > svg");
+            if (!ref) throw new Error("参考 SVG 解析失败");
+
+            var items = ref.getAttribute("aria-label").split(" / ");
+            var n = items.length;
+            var refTitle = ref.querySelector("title");
+            var port = DotMatrix.create(items, {
+              primary: 1,
+              className: ref.getAttribute("class"),
+              title: refTitle ? refTitle.textContent : undefined,
+            });
+
+            document.getElementById("ref-host").appendChild(document.importNode(ref, true));
+            document.getElementById("port-host").appendChild(port);
+
+            /* ① 几何与语义（必须完全一致） */
+            line(ref.getAttribute("viewBox") === port.getAttribute("viewBox"), "viewBox 一致", ref.getAttribute("viewBox"));
+            line(ref.getAttribute("aria-label") === port.getAttribute("aria-label"), "aria-label 一致", ref.getAttribute("aria-label"));
+            line(ref.getAttribute("role") === port.getAttribute("role"), "role 一致");
+            line(ref.getAttribute("style") === port.getAttribute("style"), "根 style 一致", ref.getAttribute("style"));
+
+            /* ② 根 class：除作用域类外一致，且移植版必须带上 dm-n{n} */
+            line(
+              unscopeClass(ref.getAttribute("class"), n) === unscopeClass(port.getAttribute("class"), n),
+              "根 class（去掉 dm-n" + n + " 后）一致",
+              port.getAttribute("class")
+            );
+            line((port.getAttribute("class") || "").split(/\s+/).indexOf("dm-n" + n) >= 0, "根 class 含作用域类 dm-n" + n);
+
+            /* ③ 注入 CSS：除作用域化外逐字一致 */
+            var refCss = ref.querySelector("style").textContent;
+            var portCss = port.querySelector("style").textContent;
+            var sameCss = unscope(refCss, n) === unscope(portCss, n);
+            line(sameCss, "注入的 @keyframes / .dm-* CSS（去掉作用域后）逐字一致", refCss.length + " → " + portCss.length + " 字符");
+            if (!sameCss) lines.push("<span class='dim'>" + JSON.stringify(unscope(refCss, n)) + "\n" + JSON.stringify(unscope(portCss, n)) + "</span>");
+
+            /* ④ P0 守卫：不得残留未作用域的规则，keyframes 名必须带组数 */
+            line(!hasUnscopedRule(portCss), "P0-1：没有未作用域的 .dm-item/.dm-both/.dm-off/.dm-primary 规则");
+            line(portCss.indexOf("@keyframes dm-swap-" + n + " ") >= 0, "P0-1：keyframes 名为 dm-swap-" + n);
+            var scopedRuleCount = (portCss.match(/\.dm-n\d+ \./g) || []).length;
+            line(scopedRuleCount >= 5, "P0-1：规则均带作用域前缀", scopedRuleCount + " 条");
+
+            /* ⑤ 子节点数量与顺序 */
+            var a = ref.children, b = port.children;
+            line(a.length === b.length, "子节点数量一致", a.length + " / " + b.length);
+
+            /* ⑥ 逐圆点比对 cx/cy/r/class/style（圆点与文本都不受 P0 修复影响，必须完全一致） */
+            var mismatch = [];
+            var circles = 0;
+            var count = Math.min(a.length, b.length);
+            for (var i = 0; i < count; i++) {
+              var x = a[i], y = b[i];
+              var isStyle = x.nodeName.toLowerCase() === "style";
+              var ok = x.nodeName === y.nodeName && attrsOf(x) === attrsOf(y) &&
+                (isStyle ? true : (x.textContent || "") === (y.textContent || ""));
+              if (x.nodeName.toLowerCase() === "circle") circles++;
+              if (!ok && mismatch.length < 5) {
+                mismatch.push("#" + i + "\n  基准: <" + x.nodeName + " " + attrsOf(x) + ">" + (x.textContent || "") + "\n  移植: <" + y.nodeName + " " + attrsOf(y) + ">" + (y.textContent || ""));
+              }
+            }
+            line(mismatch.length === 0, "每个节点（" + count + " 个）属性与文本逐一相同", "圆点 = " + circles + " 个");
+            if (mismatch.length) lines.push("<span class='dim'>" + mismatch.join("\n") + "</span>");
+
+            /* ⑦ 整棵 DOM 树规范化后逐字一致（最强判据；仅抹平作用域化差异） */
+            var refCanon = normTree(canonical(ref), n);
+            var portCanon = normTree(canonical(port), n);
+            var same = refCanon === portCanon;
+            line(same, "整棵 SVG DOM 树规范化后逐字一致", same ? refCanon.length + " 字符" : "见下方首个差异");
+            if (!same) {
+              var p = 0;
+              while (p < refCanon.length && refCanon[p] === portCanon[p]) p++;
+              lines.push(
+                "<span class='dim'>首个差异 @ " + p + "\n  基准: " + JSON.stringify(refCanon.slice(Math.max(0, p - 60), p + 90)) +
+                "\n  移植: " + JSON.stringify(portCanon.slice(Math.max(0, p - 60), p + 90)) + "</span>"
+              );
+            }
+
+            /* ⑧ P0-2 守卫：单组默认静态、animate="always" 才产生动画节点 */
+            var one = DotMatrix.create(["ONE"], {});
+            var oneAlways = DotMatrix.create(["ONE"], { animate: "always" });
+            line(one.querySelectorAll(".dm-item").length === 0, "P0-2：单组 + animate=auto → 无动画节点（静态）");
+            line(oneAlways.querySelectorAll(".dm-item").length > 0, "P0-2：单组 + animate=always → 有动画节点",
+              oneAlways.querySelectorAll(".dm-item").length + " 个");
+            line(oneAlways.querySelector(".dm-primary") !== null, "P0-2：单组 always 时 primary 夹取到 0 生效");
+            var kf1 = oneAlways.querySelector("style").textContent;
+            line(kf1.indexOf("100.6%") < 0 && kf1.indexOf("dm-swap-1 ") >= 0, "P0-2：n=1 关键帧无越界百分比");
+
+            lines.push("");
+            lines.push(failed === 0
+              ? '<span class="pass">全部通过</span> —— 移植版 = 站点版 + P0 修复（几何/相位/圆点完全一致，仅作用域化不同；上方两块屏应逐像素相同）。'
+              : '<span class="fail">' + failed + " 项不一致</span>");
+            out.innerHTML = lines.join("\n");
+            document.title = (failed === 0 ? "PASS · " : "FAIL · ") + "移植版校验";
+          })
+          .catch(function (err) {
+            out.innerHTML =
+              '<span class="fail">无法加载参考 SVG</span>（' + err.message + "）\n\n" +
+              "file:// 下 fetch 会被浏览器拦截，请用本地服务打开：\n" +
+              "  cd dot-matrix && python -m http.server 8123\n" +
+              "  然后访问 http://127.0.0.1:8123/test/compare.html";
+          });
+      })();
+    </script>
+  </body>
+</html>

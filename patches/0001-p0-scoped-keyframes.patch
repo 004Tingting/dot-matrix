@@ -1,0 +1,124 @@
+diff --git a/components/DotMatrix.tsx b/components/DotMatrix.tsx
+index 712bafa..2f4e530 100644
+--- a/components/DotMatrix.tsx
++++ b/components/DotMatrix.tsx
+@@ -7,6 +7,17 @@
+  *
+  * 动画全部在 CSS（本组件注入 <style>：@keyframes 按组数生成 + .dm-item 规则），
+  * no-JS 照常运转（SSR 即含 style）；prefers-reduced-motion 时定格显示 primary 组（数值）。
++ *
++ * ── 2026-10-15 P0 修复（相对站点版 ba1aa80；逐行差异见 patches/0001-p0-scoped-keyframes.patch）──
++ * ① 样式作用域化：@keyframes 按组数命名（dm-swap-{n}），规则统一加 .dm-n{n} 前缀。
++ *    旧版注入的是同名 dm-swap 与裸 .dm-item —— 那是**文档级**样式，同页第二个「组数不同」的实例
++ *    会覆盖第一个（实测：2 组实例拿到 3 组的 15000ms，每个周期有 1/3 时间整屏空白）。
++ *    同组数的实例注入内容完全相同，重复无害（想再省字节可按 n 去重，SSR 下收益不值得）。
++ * ② 单组（n = 1）策略显式化：新增 animate。旧版 n = 1 时每个亮点都满足「全组共用」→ 退化为
++ *    .dm-both，屏上**没有任何动画元素**（静态图，primary 无效）。现在 animate="always" 可让它同样带闪。
++ * ③ primary 夹取到 [0, n-1]：避免 prefers-reduced-motion 定格到不存在的组 → 整屏不可见。
++ * ④ n = 1 的关键帧不再产生 100.6% 越界帧与重复百分比（只在 animate="always" 的单组屏上生效）。
++ * 几何、字模、相位与 n ≥ 2 的动画百分比与站点版完全一致（由 test/compare.html 逐节点校验）。
+  */
+ import type { ReactNode } from "react";
+ 
+@@ -87,24 +98,38 @@ export default function DotMatrix({
+   primary = 1,
+   title,
+   className,
++  animate = "auto",
+ }: {
+   /** 轮换显示的内容（渲染自动大写；建议 ≤7 字符，超长会整体缩小） */
+   items: string[];
+-  /** prefers-reduced-motion 时定格显示的组下标（默认第 2 组，即数值） */
++  /** prefers-reduced-motion 时定格显示的组下标（自动夹取到 [0, 组数-1]） */
+   primary?: number;
+   /** 悬停提示（如「累计 6,623,213,267 tokens」） */
+   title?: string;
+   className?: string;
++  /** 单组（组数 = 1）时的动画策略：auto = 静止（默认，与旧行为一致）/ always = 单组也带闪 / never = 强制静止 */
++  animate?: "auto" | "always" | "never";
+ }) {
+   const list = items.length > 0 ? items : [""];
+   const n = list.length;
++  /** 是否启用动画：n ≥ 2 恒为真；n = 1 由 animate 决定 */
++  const animated = n > 1 || animate === "always";
++  /** 单组且启用动画 → 把「全组共用」的常亮点降级为动画点（否则 n = 1 时屏上没有任何动画元素） */
++  const singleAnimated = animated && n === 1;
++  /** 夹取定格组下标，避免 prefers-reduced-motion 下定格到不存在的组 → 整屏不可见 */
++  const fixedPrimary = Math.min(Math.max(0, Math.trunc(primary)), n - 1);
+   const cols = Math.max(COLS_PER_CHAR * 2, ...list.map((s) => (COLS_PER_CHAR + CHAR_GAP) * s.length - CHAR_GAP));
+   const cellSets = list.map((s) => litCells(s, cols));
+ 
+-  /* 注入动画：@keyframes 按组数生成（每组占周期 1/n；组末「带闪熄灭」、组首「带闪点亮」）
+-     + .dm-item / .dm-both / .dm-off / reduced-motion 规则（一处定义，随 SSR 输出）。 */
++  /* 注入动画：@keyframes 按组数命名（dm-swap-{n}）+ 规则加 .dm-n{n} 作用域，避免同页多实例互相覆盖。
++     每组占周期 1/n；组末「带闪熄灭」、组首「带闪点亮」（后者是周期最后 2.4% 的一次预演，
++     与下一轮的 0%→2.4% 相接）。n = 1 时自身时段已覆盖整个周期，跳过预演并夹住越界百分比。 */
+   const seg = 100 / n;
+-  const css = `@keyframes dm-swap {
++  const name = `dm-swap-${n}`;
++  const scope = `.dm-n${n} `;
++  const offAt = Math.min(100, seg + 0.6); // 本组时段末尾的「熄灭」
++  const withTail = 100 - 2.4 > seg - 0.2; // n ≥ 2 为真；n = 1 时与自身时段重叠 → 跳过
++  const css = `@keyframes ${name} {
+   0% { opacity: 0; }
+   0.7% { opacity: 0.85; }
+   1.5% { opacity: 0.25; }
+@@ -113,18 +138,22 @@ export default function DotMatrix({
+   ${(seg - 2.4).toFixed(1)}% { opacity: 0.15; }
+   ${(seg - 1.5).toFixed(1)}% { opacity: 1; }
+   ${(seg - 0.2).toFixed(1)}% { opacity: 0.2; }
+-  ${(seg + 0.6).toFixed(1)}% { opacity: 0; }
++  ${offAt.toFixed(1)}% { opacity: 0; }${
++    withTail
++      ? `
+   97.6% { opacity: 0; }
+   98.4% { opacity: 0.85; }
+   99.2% { opacity: 0.3; }
+-  100% { opacity: 1; }
++  100% { opacity: 1; }`
++      : ""
++  }
+ }
+-.dm-item { fill: var(--color-ink); opacity: 0; animation: dm-swap ${n * ITEM_MS}ms linear infinite; }
+-.dm-both { fill: var(--color-ink); }
+-.dm-off { fill: var(--color-ink); opacity: 0.13; }
++${scope}.dm-item { fill: var(--color-ink); opacity: 0; animation: ${name} ${n * ITEM_MS}ms linear infinite; }
++${scope}.dm-both { fill: var(--color-ink); }
++${scope}.dm-off { fill: var(--color-ink); opacity: 0.13; }
+ @media (prefers-reduced-motion: reduce) {
+-  .dm-item { animation: none; }
+-  .dm-primary { opacity: 1; }
++  ${scope}.dm-item { animation: none; }
++  ${scope}.dm-primary { opacity: 1; }
+ }`;
+ 
+   const dots: ReactNode[] = [];
+@@ -138,8 +167,8 @@ export default function DotMatrix({
+       if (owners.length === 0) {
+         // 全组都不含 → 底点（屏质感）
+         dots.push(<circle key={`o${cell}`} cx={cx} cy={cy} r={DOT_R} className="dm-off" />);
+-      } else if (owners.length === n) {
+-        // 全组共用 → 常亮锚点
++      } else if (owners.length === n && !singleAnimated) {
++        // 全组共用 → 常亮锚点（单组且开动画时不走这条，见 singleAnimated）
+         dots.push(<circle key={`b${cell}`} cx={cx} cy={cy} r={DOT_R} className="dm-both" />);
+       } else {
+         for (const k of owners) {
+@@ -149,7 +178,7 @@ export default function DotMatrix({
+               cx={cx}
+               cy={cy}
+               r={DOT_R}
+-              className={`dm-item dm-i${k}${k === primary ? " dm-primary" : ""}`}
++              className={`dm-item dm-i${k}${k === fixedPrimary ? " dm-primary" : ""}`}
+               style={{ animationDelay: `${k * ITEM_MS + c * COL_STEP_MS}ms` }}
+             />,
+           );
+@@ -161,7 +190,7 @@ export default function DotMatrix({
+   return (
+     <svg
+       viewBox={`0 0 ${cols * PITCH} ${ROWS * PITCH}`}
+-      className={className}
++      className={[className, `dm-n${n}`].filter(Boolean).join(" ")}
+       style={{ height: "auto" }}
+       role="img"
+       aria-label={list.join(" / ")}

@@ -1,0 +1,22 @@
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# 日志与临时文件
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.swp
+
+# 编辑器
+.vscode/
+.idea/
+
+# 校验时的临时产物（截图请按 test/verify.md 复跑）
+dom.html

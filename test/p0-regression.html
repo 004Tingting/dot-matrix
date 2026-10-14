@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>P0 回归探针 · DotMatrix</title>
+    <style>
+      html, body { margin: 0; padding: 12px; background: #faf8f5; color: #1a1a1a; }
+      :root { --color-ink: #1a1a1a; }
+      body { font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace; }
+      .row { display: flex; gap: 32px; flex-wrap: wrap; }
+      .cell { width: 260px; }
+      .cell svg { display: block; width: 100%; height: auto; }
+      .cell p { margin: 6px 0 0; color: rgba(26, 26, 26, 0.55); }
+      #out { white-space: pre-wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(26, 26, 26, 0.15); }
+      .ok { color: #1f7a3d; font-weight: 700; }
+      .bad { color: #b4432e; font-weight: 700; }
+      .dim { color: rgba(26, 26, 26, 0.55); }
+    </style>
+  </head>
+  <body>
+    <!--
+      P0 回归探针（2026-10-15 修复后）：
+        P0-1 同页多实例不再互相覆盖 → 各按自己的组数取 animation-duration，keyframes 按组数命名，无全局规则
+        P0-2 单组（n = 1）策略显式化 → animate="auto" 静止、animate="always" 带闪，且关键帧无越界百分比
+        P0-3 primary 越界被夹取到有效范围（reduced-motion 下不会定格成空屏）
+      打开方式：需与 demo/ 同源（file:// 双击 test/p0-regression.html 亦可）。
+    -->
+    <div class="row">
+      <div class="cell">
+        <div id="a"></div>
+        <p>实例 A：2 组 <code>["ONE","1.2B"]</code> → 期望 10s</p>
+      </div>
+      <div class="cell">
+        <div id="b"></div>
+        <p>实例 B：3 组 <code>["A","B","C"]</code> → 期望 15s</p>
+      </div>
+      <div class="cell">
+        <div id="c"></div>
+        <p>实例 C：单组 + <code>animate:"always"</code> → 期望 5s 且有动画节点</p>
+      </div>
+      <div class="cell">
+        <div id="d"></div>
+        <p>实例 D：单组 + <code>animate:"auto"</code>（默认）→ 静态</p>
+      </div>
+    </div>
+    <div id="out">探针运行中…</div>
+
+    <script src="../demo/dot-matrix.js"></script>
+    <script>
+      (function () {
+        var out = document.getElementById("out");
+        var lines = [];
+        var failed = 0;
+
+        function line(ok, label, detail) {
+          if (!ok) failed++;
+          lines.push((ok ? '<span class="ok">PASS</span>' : '<span class="bad">FAIL</span>') + "  " + label +
+            (detail ? '  <span class="dim">' + detail + "</span>" : ""));
+        }
+
+        try {
+          var hostA = document.getElementById("a");
+          var hostB = document.getElementById("b");
+          var hostC = document.getElementById("c");
+          var hostD = document.getElementById("d");
+
+          hostA.appendChild(DotMatrix.create(["ONE", "1.2B"], { primary: 1 }));
+          hostB.appendChild(DotMatrix.create(["A", "B", "C"], { primary: 1 }));
+          hostC.appendChild(DotMatrix.create(["SINGLE"], { animate: "always" }));
+          hostD.appendChild(DotMatrix.create(["SINGLE"], {}));
+
+          /* ---------- P0-1：多实例互不干扰 ---------- */
+          var durA = getComputedStyle(hostA.querySelector(".dm-i0")).animationDuration;
+          var durB = getComputedStyle(hostB.querySelector(".dm-i0")).animationDuration;
+          line(durA === "10s", "P0-1 实例 A（2 组）animation-duration = 10s", "实际 " + durA);
+          line(durB === "15s", "P0-1 实例 B（3 组）animation-duration = 15s", "实际 " + durB);
+
+          var names = [];
+          var globalRules = [];
+          for (var i = 0; i < document.styleSheets.length; i++) {
+            try {
+              var rs = document.styleSheets[i].cssRules;
+              for (var j = 0; j < rs.length; j++) {
+                var r = rs[j];
+                if (r.constructor.name === "CSSKeyframesRule") names.push(r.name);
+                if (r.constructor.name === "CSSStyleRule" && /^\.dm-(item|both|off|primary)$/.test(r.selectorText)) {
+                  globalRules.push(r.selectorText);
+                }
+              }
+            } catch (e) {}
+          }
+          names.sort();
+          line(names.indexOf("dm-swap-2") >= 0 && names.indexOf("dm-swap-3") >= 0,
+            "P0-1 keyframes 按组数命名", names.join(", "));
+          line(names.indexOf("dm-swap") < 0, "P0-1 不存在未加组数后缀的 dm-swap");
+          line(globalRules.length === 0, "P0-1 不存在未作用域的 .dm-item/.dm-both/.dm-off/.dm-primary 规则",
+            globalRules.length ? globalRules.join(", ") : "0 条");
+
+          /* ---------- P0-2：单组策略 ---------- */
+          var cItems = hostC.querySelectorAll(".dm-item");
+          var cDur = cItems.length ? getComputedStyle(cItems[0]).animationDuration : "(无)";
+          line(cItems.length > 0, "P0-2 单组 + animate=always 有动画节点", cItems.length + " 个");
+          line(cDur === "5s", "P0-2 单组 + animate=always 周期 = 5s", "实际 " + cDur);
+          line(hostD.querySelectorAll(".dm-item").length === 0, "P0-2 单组 + animate=auto 保持静态（无动画节点）");
+          line(hostD.querySelectorAll(".dm-both").length > 0, "P0-2 单组 auto 时亮点走 dm-both（常亮锚点）",
+            hostD.querySelectorAll(".dm-both").length + " 个");
+          var kf1 = hostC.querySelector("style").textContent;
+          line(kf1.indexOf("100.6%") < 0 && kf1.indexOf("dm-swap-1 ") >= 0,
+            "P0-2 n=1 关键帧无越界百分比、名称正确");
+          /* 注意：n=1 时 97.6% 是「组末带闪熄灭」的合法帧（seg-2.4），要查的是**重复**百分比 */
+          var pcts = (kf1.match(/\d+(?:\.\d+)?%/g) || []);
+          var dup = pcts.filter(function (p, i) { return pcts.indexOf(p) !== i; });
+          line(dup.length === 0, "P0-2 n=1 关键帧无重复百分比（预演帧已跳过）", pcts.join(" "));
+
+          /* ---------- P0-3：primary 夹取 ---------- */
+          var clamped = DotMatrix.create(["A", "B", "C"], { primary: 99 });
+          var primaryNodes = clamped.querySelectorAll(".dm-primary");
+          var okPrimary = primaryNodes.length > 0 &&
+            Array.prototype.every.call(primaryNodes, function (el) { return el.getAttribute("class").indexOf("dm-i2") >= 0; });
+          line(okPrimary, "P0-3 primary=99 被夹取到最后一组（dm-i2）", primaryNodes.length + " 个 dm-primary 节点");
+
+          lines.push("");
+          lines.push(failed === 0
+            ? '<span class="ok">全部通过</span> —— P0 修复生效（对照修复前的实测：实例 A 曾拿到 15s）。'
+            : '<span class="bad">' + failed + " 项失败</span>");
+          document.title = (failed === 0 ? "PASS · " : "FAIL · ") + "P0 回归探针";
+        } catch (e) {
+          lines.push('<span class="bad">探针异常</span> ' + e.message);
+          document.title = "FAIL · P0 回归探针";
+        }
+        out.innerHTML = lines.join("\n");
+      })();
+    </script>
+  </body>
+</html>

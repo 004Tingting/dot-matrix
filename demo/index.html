@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>点阵屏 · DotMatrix 演示</title>
+    <meta
+      name="description"
+      content="5×7 LED 字模点阵屏：纯 SVG + CSS 动画，零依赖，多组定时重组轮换。"
+    />
+    <style>
+      /* ---------- 主题令牌（与 personal-site 的 app/globals.css 同值） ---------- */
+      :root {
+        --color-paper: #faf8f5;
+        --color-ink: #1a1a1a;
+        --color-accent: #b4432e;
+        --color-rule: rgba(26, 26, 26, 0.15);
+        --color-muted: rgba(26, 26, 26, 0.55);
+        --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --color-paper: #141414;
+          --color-ink: #edeae4;
+          --color-accent: #d0604a;
+          --color-rule: rgba(237, 234, 228, 0.15);
+          --color-muted: rgba(237, 234, 228, 0.55);
+        }
+      }
+      :root[data-theme="dark"] {
+        --color-paper: #141414;
+        --color-ink: #edeae4;
+        --color-accent: #d0604a;
+        --color-rule: rgba(237, 234, 228, 0.15);
+        --color-muted: rgba(237, 234, 228, 0.55);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 0 24px 96px;
+        background: var(--color-paper);
+        color: var(--color-ink);
+        font-family: var(--font-mono);
+        font-size: 14px;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 880px; margin: 0 auto; }
+
+      /* ---------- 页头 ---------- */
+      header { padding: 64px 0 32px; border-bottom: 1px solid var(--color-rule); }
+      .kicker {
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--color-muted);
+      }
+      .kicker span { color: var(--color-accent); }
+      h1 { margin: 14px 0 0; font-size: 40px; line-height: 1.15; letter-spacing: -0.01em; }
+      .lede { margin: 12px 0 0; color: var(--color-muted); }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 24px; }
+      .seg { display: inline-flex; border: 1px solid var(--color-rule); border-radius: 2px; overflow: hidden; }
+      .seg button {
+        appearance: none;
+        border: 0;
+        border-right: 1px solid var(--color-rule);
+        background: transparent;
+        color: var(--color-muted);
+        font: inherit;
+        font-size: 12px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      .seg button:last-child { border-right: 0; }
+      .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--color-ink) 8%, transparent); color: var(--color-ink); }
+      .hint { color: var(--color-muted); font-size: 12px; }
+
+      /* ---------- 卡片 ---------- */
+      section.card { padding: 36px 0; border-bottom: 1px solid var(--color-rule); }
+      section.card > h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--color-ink);
+      }
+      section.card > h2 em { font-style: normal; color: var(--color-accent); margin-right: 8px; }
+      .note { margin: 8px 0 0; color: var(--color-muted); font-size: 12px; }
+      .stage {
+        margin-top: 20px;
+        padding: 18px;
+        border: 1px solid var(--color-rule);
+        background: color-mix(in srgb, var(--color-ink) 3%, transparent);
+      }
+      .stage--paper { background: transparent; }
+      .dm-host svg { display: block; width: 100%; height: auto; }
+      .dm-host--aside { max-width: 300px; }
+      .dm-host--tight { max-width: 480px; }
+      .meta {
+        margin: 14px 0 0;
+        color: var(--color-muted);
+        font-size: 11px;
+        letter-spacing: 0.02em;
+      }
+      .meta code { color: var(--color-ink); }
+
+      /* ---------- 字符集表 ---------- */
+      .charset { display: grid; gap: 14px; margin-top: 20px; }
+      .charset figure { margin: 0; }
+      .charset figcaption { color: var(--color-muted); font-size: 11px; margin-bottom: 6px; }
+
+      /* ---------- 试验台 ---------- */
+      .play { display: grid; gap: 14px; grid-template-columns: minmax(220px, 1fr) 120px; margin-top: 20px; }
+      .play label { display: block; color: var(--color-muted); font-size: 11px; margin-bottom: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
+      textarea, input[type="number"], select {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--color-rule);
+        background: transparent;
+        color: var(--color-ink);
+        font: inherit;
+        font-size: 13px;
+        border-radius: 2px;
+      }
+      textarea { min-height: 108px; resize: vertical; line-height: 1.6; }
+      .actions { display: flex; gap: 10px; margin-top: 14px; }
+      .btn {
+        appearance: none;
+        border: 1px solid var(--color-rule);
+        background: transparent;
+        color: var(--color-ink);
+        font: inherit;
+        font-size: 12px;
+        padding: 7px 14px;
+        cursor: pointer;
+        border-radius: 2px;
+      }
+      .btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+      .btn--solid { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-paper); }
+      .btn--solid:hover { color: var(--color-paper); opacity: 0.9; }
+      pre {
+        margin: 16px 0 0;
+        padding: 14px;
+        border: 1px solid var(--color-rule);
+        overflow-x: auto;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--color-muted);
+      }
+      pre b { color: var(--color-ink); font-weight: 600; }
+
+      footer { padding: 36px 0 0; color: var(--color-muted); font-size: 12px; }
+      footer a { color: var(--color-accent); }
+      @media (max-width: 640px) {
+        .play { grid-template-columns: 1fr; }
+        h1 { font-size: 30px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="kicker"><span>·</span> Dot Matrix</p>
+        <h1>点阵屏</h1>
+        <p class="lede">
+          5×7 LED 字模 · 纯 SVG + CSS 动画 · 零依赖 · 多组定时重组轮换。<br />
+          每个亮点按「组相位 + 列相位（22ms）」错峰亮灭，切换时旧组熄灭、新组亮起、两股扫掠同时进行。
+        </p>
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="主题">
+            <button type="button" data-theme-btn="auto" aria-pressed="true">跟随系统</button>
+            <button type="button" data-theme-btn="light" aria-pressed="false">浅色</button>
+            <button type="button" data-theme-btn="dark" aria-pressed="false">深色</button>
+          </div>
+          <span class="hint">无构建 · 无依赖 · 可离线打开</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="card">
+          <h2><em>①</em>首页侧栏原版</h2>
+          <p class="note">
+            三组各 5s、周期 15s：STRIVE ⇄ 累计 tokens ⇄ 署名；数值组随轮询静默更新（点阵逐帧本就在变，不参与骨架）。
+          </p>
+          <div class="stage stage--paper">
+            <div
+              class="dm-host dm-host--aside"
+              data-dot-matrix='["STRIVE","6.63B","04Ting."]'
+              data-primary="1"
+              data-title="累计 6,629,904,321 tokens"
+            ></div>
+          </div>
+          <p class="meta"><code>items: ["STRIVE","6.63B","04Ting."] · primary: 1 · 周期 15000ms</code></p>
+        </section>
+
+        <section class="card">
+          <h2><em>②</em>两组互换（一稿形态）</h2>
+          <p class="note">单词 ⇄ 数字，周期 10s；组末「带闪熄灭」、组首「带闪点亮」。</p>
+          <div class="stage stage--paper">
+            <div class="dm-host dm-host--aside" data-dot-matrix='["STRIVE","6.63B"]' data-primary="1"></div>
+          </div>
+          <p class="meta"><code>items: ["STRIVE","6.63B"] · primary: 1 · 周期 10000ms</code></p>
+          <p class="note">
+            <strong>P0-1 已修</strong>：keyframes 按组数命名（<code>dm-swap-2</code>）并加 <code>.dm-n2</code> 作用域，
+            所以本页 8 个不同组数的实例各走自己的时序。站点旧版注入的是同名 <code>dm-swap</code> + 裸 <code>.dm-item</code>
+            （文档级样式），最后一张样式表会覆盖全部实例 —— 2 组的卡会按 3 组跑，每周期空 1/3。
+            复现与实测见 <code>test/multi-instance-probe.html</code> 与 <code>docs/improvements.md</code> §1。
+          </p>
+        </section>
+
+        <section class="card">
+          <h2><em>③</em>单组（n = 1）</h2>
+          <p class="note">
+            <strong>P0-2 已修</strong>：单组时每个亮点都满足「全组共用」→ 旧版全部退化成 <code>dm-both</code>（常亮），
+            屏上没有任何动画元素。现在用 <code>animate</code> 显式控制：<code>auto</code>（默认）保持静止，
+            <code>always</code> 则按同一套「带闪点亮 → 长亮 → 带闪熄灭」节奏动起来（周期 5s，末尾带闪熄灭）。
+          </p>
+          <div class="stage stage--paper">
+            <div class="dm-host dm-host--tight" data-dot-matrix='["DOT MATRIX"]' data-primary="0" data-animate="always"></div>
+            <p class="meta"><code>animate: "always" · 周期 5000ms · 有 dm-item 节点</code></p>
+          </div>
+          <div class="stage stage--paper">
+            <div class="dm-host dm-host--tight" data-dot-matrix='["DOT MATRIX"]' data-primary="0"></div>
+            <p class="meta"><code>animate: "auto"（默认）· 静态，无 dm-item 节点</code></p>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2><em>④</em>超长文本</h2>
+          <p class="note">
+            屏宽 = 最长组（字符数 × 6 − 1 列）→ 超 7 字符时 viewBox 变宽，<code>width:100%</code> 下整屏等比缩小、点距变密。
+          </p>
+          <div class="stage stage--paper">
+            <div class="dm-host" data-dot-matrix='["PERSONAL SITE","2026-10-15"]' data-primary="1"></div>
+          </div>
+          <p class="meta"><code>items: ["PERSONAL SITE","2026-10-15"] · primary: 1</code></p>
+        </section>
+
+        <section class="card">
+          <h2><em>⑤</em>字模表</h2>
+          <p class="note">内置 A–Z、0–9、<code>.</code>、<code>-</code>；空格与未收录字符（如中文）各占 1 格宽度但不点亮，即留白。新增字形改 <code>src/DotMatrix.tsx</code> 的 <code>FONT</code> 或 <code>demo/dot-matrix.js</code> 的 <code>FONT</code>。</p>
+          <div class="charset">
+            <figure>
+              <figcaption>A–Z</figcaption>
+              <div class="dm-host" data-dot-matrix='["ABCDEFGHIJKLMNOPQRSTUVWXYZ"]' data-primary="0"></div>
+            </figure>
+            <figure>
+              <figcaption>0–9</figcaption>
+              <div class="dm-host" data-dot-matrix='["0123456789"]' data-primary="0"></div>
+            </figure>
+            <figure>
+              <figcaption>标点</figcaption>
+              <div class="dm-host dm-host--tight" data-dot-matrix='["6.63B-04TING."]' data-primary="0"></div>
+            </figure>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2><em>⑥</em>试验台</h2>
+          <p class="note">每行一组（自动大写；空格与未收录字符占位但不点亮）；<code>primary</code> 是 <code>prefers-reduced-motion</code> 下定格显示的组下标（自动夹取到有效范围）；<code>animate</code> 控制单组时是否也带闪。</p>
+          <div class="play">
+            <div>
+              <label for="play-items">轮换内容（每行一组）</label>
+              <textarea id="play-items">STRIVE
+6.63B
+04Ting.</textarea>
+            </div>
+            <div>
+              <label for="play-primary">primary</label>
+              <input id="play-primary" type="number" min="0" step="1" value="1" />
+              <label for="play-animate" style="margin-top: 12px">animate</label>
+              <select id="play-animate">
+                <option value="auto" selected>auto</option>
+                <option value="always">always</option>
+                <option value="never">never</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn--solid" id="play-apply">应用</button>
+            <button type="button" class="btn" id="play-reset">重置</button>
+          </div>
+          <div class="stage stage--paper" style="margin-top: 18px">
+            <div class="dm-host dm-host--aside" id="play-host"></div>
+          </div>
+          <pre id="play-code"></pre>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          提取自个人站点 <code>personal-site</code> 首页侧栏 Token 卡（2026-10-15，React 版见
+          <code>src/DotMatrix.tsx</code>）· MIT License · 校验方法见 <code>test/verify.md</code>。
+        </p>
+      </footer>
+    </div>
+
+    <script src="dot-matrix.js"></script>
+    <script>
+      /* ---------- 主题切换 ---------- */
+      (function () {
+        var btns = document.querySelectorAll("[data-theme-btn]");
+        function apply(theme) {
+          if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+          else document.documentElement.setAttribute("data-theme", theme);
+          btns.forEach(function (b) {
+            b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-btn") === theme));
+          });
+          try { localStorage.setItem("dm-demo-theme", theme); } catch (e) {}
+        }
+        btns.forEach(function (b) {
+          b.addEventListener("click", function () { apply(b.getAttribute("data-theme-btn")); });
+        });
+        var saved = null;
+        try { saved = localStorage.getItem("dm-demo-theme"); } catch (e) {}
+        /* ?theme=dark / light / auto 可直接指定（便于截图与分享） */
+        var qs = /[?&]theme=(auto|light|dark)\b/.exec(location.search);
+        if (qs) apply(qs[1]);
+        else if (saved) apply(saved);
+      })();
+
+      /* ---------- 试验台 ---------- */
+      (function () {
+        var host = document.getElementById("play-host");
+        var ta = document.getElementById("play-items");
+        var primaryInput = document.getElementById("play-primary");
+        var animateSelect = document.getElementById("play-animate");
+        var code = document.getElementById("play-code");
+        var DEFAULTS = { items: "STRIVE\n6.63B\n04Ting.", primary: "1", animate: "auto" };
+
+        function render() {
+          var items = ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+          var primary = Number(primaryInput.value || 0);
+          var animate = animateSelect.value;
+          host.innerHTML = "";
+          host.appendChild(DotMatrix.create(items.length ? items : [""], { primary: primary, animate: animate }));
+          var svg = host.querySelector("svg");
+          var animated = svg.querySelectorAll(".dm-item").length;
+          code.innerHTML =
+            "DotMatrix.create(<b>" + JSON.stringify(items) + "</b>, { primary: <b>" + primary + "</b>, animate: <b>\"" + animate + "\"</b> })" +
+            "\n// 周期 = 组数 × " + DotMatrix.ITEM_MS + "ms = <b>" + items.length * DotMatrix.ITEM_MS + "ms</b>" +
+            "  ·  动画节点 <b>" + animated + "</b> 个" +
+            (items.length === 1 && animate !== "always" ? "  ← 单组 + auto/never：静态（无动画节点）" : "");
+        }
+
+        document.getElementById("play-apply").addEventListener("click", render);
+        document.getElementById("play-reset").addEventListener("click", function () {
+          ta.value = DEFAULTS.items;
+          primaryInput.value = DEFAULTS.primary;
+          animateSelect.value = DEFAULTS.animate;
+          render();
+        });
+        ta.addEventListener("input", render);
+        primaryInput.addEventListener("input", render);
+        animateSelect.addEventListener("change", render);
+        render();
+      })();
+    </script>
+  </body>
+</html>
