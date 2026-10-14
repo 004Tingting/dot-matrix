@@ -19,6 +19,22 @@
 
 ---
 
+## 来源与灵感
+
+来自个人站点 **004Tingting.github.io** 首页侧栏「Token 卡」的主显示（2026-10-15 上线）。
+原始 brief 只有三句（`personal-site/WORKLOG.md` 原文）：
+
+> **② 首页 Token 卡点阵屏**（Ting：改成点阵字符显示累计 tokens；推荐代表「上进」的英文词；定时闪烁重组互换）
+
+对应到实现就是：5×7 字模显示 `6.63B`、`STRIVE` 代表「上进」、组相位 + 列相位错峰扫掠实现「重组」。
+视觉母题属 LED 点阵招牌 / 机场翻牌屏 / 点阵打印机这一系：**离散的点、逐格刷新、刷新时带残影** ——
+本组件的「重组扫掠」是刷新，「错点」就是残影。
+
+上游版本、提取基准（`43c00d6`，SHA-256 一致）、设计约束的来龙去脉、以及本次整理相对站点的增量，
+都写在 **[docs/origin.md](docs/origin.md)**。
+
+---
+
 ## 目录
 
 ```
@@ -40,6 +56,7 @@ dot-matrix/
 │  ├─ shot.mjs                  确定性截图工具（CDP + 真实等待，预览图由它产出）
 │  └─ verify.md                 复跑步骤与结论
 ├─ docs/
+│  ├─ origin.md               来源与灵感：上游提交、brief 原文、设计语境、时间线、增量归属
 │  ├─ integration.md          在 personal-site 里的接入方式与设计取舍
 │  ├─ glitch.md               错点效果：参数语义、轮次算法、DOM 代价、时间轴
 │  └─ improvements.md         可改进点：实测数据 + 优先级 + 修法（P0 已修，P1/P2 待办）
@@ -49,7 +66,7 @@ dot-matrix/
 
 ## P0 修复（2026-10-15）
 
-本仓库相对站点版 `ba1aa80` 修掉了两个 P0 缺陷；**几何、字模、相位与 n ≥ 2 的关键帧百分比一字未动**，
+本仓库相对上游 `43c00d6:components/DotMatrix.tsx` 修掉了两个 P0 缺陷；**几何、字模、相位与 n ≥ 2 的关键帧百分比一字未动**，
 由 `test/compare.html` 逐节点校验（去掉作用域化差异后逐字一致）。
 
 | # | 缺陷 | 修法 |
@@ -212,13 +229,16 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 
 ## 来源与许可
 
-- 源文件：`personal-site@ba1aa80` 工作树版本（2026-10-15，多组轮换二稿）
-  - `components/DotMatrix.tsx` — 站点版 SHA-256 `0F7896CD23B110205DEF4CAF3A9B2B16BF87BA390DDA633F512B7E5282D59221`
-    - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `296FCEE859659C29652D3A577F1F7C72CC112C4E524F6592BF08C221D709A0D8`，6 hunk，+44 / −15）
-    - 再叠 `patches/0002-glitch-effect.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `401D28B641D15EE7CC209911F72DA30E0EA13B9E3F931F486A0F64F85A93510E`，8 hunk，+160 / −2）
+- 上游仓库：`https://github.com/004Tingting/004Tingting.github.io`（作者 `004Tingting`）
+  - 一稿 `427f1b6`（2026-10-15 02:33，两组轮换）→ 二稿 `43c00d6`（03:08，三组轮换）
+  - **提取基准** = `43c00d6:components/DotMatrix.tsx`，SHA-256 `0F7896CD23B110205DEF4CAF3A9B2B16BF87BA390DDA633F512B7E5282D59221`
+    （提取时该二稿尚未提交，从工作树取；内容与 `43c00d6` 逐字节一致。站点侧此后到 `997e410` 未再改动该文件）
+    - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `886944859202162F80F3BAA465EB6F16F85345E94C72FA8D311F16E2A24224DC`，6 hunk，+44 / −15）
+    - 再叠 `patches/0002-glitch-effect.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `0B834B3872565DFF7CB249AA2692CA925BF1F60077F5B8C0070A524270442D3F`，8 hunk，+160 / −2）
     - 两个 patch 均已验：`git apply` 后与对应版本**逐字节一致**
-  - `components/TokenMonitor.tsx` — 首页侧栏 `variant === "aside"` 的接入点
+  - `components/TokenMonitor.tsx` — 首页侧栏 `variant === "aside"` 的接入点（`DOT_MATRIX_WORD` / `DOT_MATRIX_TAG`）
   - `app/globals.css` — 一稿的 `.dm-*` 规则（二稿已改为组件内注入）
+- 完整来源梳理与灵感说明：[docs/origin.md](docs/origin.md)
 - 许可：[MIT](LICENSE)
 
 ## 上传到 GitHub

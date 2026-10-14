@@ -1,7 +1,8 @@
 # 在 personal-site 里的接入方式
 
 > 本文记录点阵屏在原站点中的真实用法与设计取舍，方便移植到别处时对照。
-> 来源：`personal-site@ba1aa80` 工作树（2026-10-15）。原始提交 `427f1b6`（一稿）+ 同日二稿（多组轮换）。
+> 来源：`personal-site` 提交 `43c00d6`（2026-10-15 03:08，三组轮换二稿；一稿为 `427f1b6`）。
+> 完整来源与灵感见 [origin.md](origin.md)。
 
 ## 1. 接入点：首页侧栏 Token 卡的 `aside` 变体
 
@@ -121,7 +122,7 @@ html[data-theme="dark"] {
 | `components/TokenMonitor.tsx` | 首页侧栏 `aside` 变体的接入点 |
 | `app/globals.css` | 提供 `--color-ink` 等令牌（一稿的 `.dm-*` 已移除） |
 | `.workbuddy/verify/v2-matrix-*.png` | 站点侧的验证截图（本目录 `preview/` 内副本） |
-| `WORKLOG.md` / `HANDOFF.md` | 上线记录：`427f1b6`（点阵屏）+ `ba1aa80`（数据副产品） |
+| `WORKLOG.md` / `HANDOFF.md` | 上线记录：`427f1b6`（一稿点阵屏）、`43c00d6`（二稿三组轮换）、`ba1aa80`（数据副产品） |
 
 ## 5. 本仓库与站点的差异（P0 修复）
 

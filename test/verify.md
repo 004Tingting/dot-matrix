@@ -134,3 +134,23 @@ PASS  ⑦ 错点在 prefers-reduced-motion 下被禁用
 ```
 
 语义、算法与 DOM 代价见 [../docs/glitch.md](../docs/glitch.md)。
+
+## 8. 覆盖范围与缺口（如实说明）
+
+| 目标 | 状态 |
+| --- | --- |
+| `demo/dot-matrix.js`（vanilla 实现） | ✅ 自动化：对照校验 17 项、P0 探针 12 项、错点探针 17 项 |
+| `src/DotMatrix.tsx`（React 版） | ⚠️ **未纳入自动化** |
+| 站点 SSG 真实输出 | ✅ 作为对照基准（`reference-home-aside.svg`），逐节点 + 像素比对 |
+
+React 版没有自动化测试的原因：本仓库刻意**不带构建链**（组件定位是"复制即用、零依赖"），
+浏览器探针只能跑 vanilla 镜像。两者的一致性靠两点保证：
+
+1. **逐行镜像**：同一份 `FONT`、同一套几何常数、同一套 `@keyframes` 生成公式与错点轮次算法；
+2. **间接对齐**：`compare.html` 的基准正是站点上 **React 版 SSR 输出**的真实 SVG ——
+   默认参数下 vanilla 版与 React 版的输出被这份基准夹在一起校验过（17 项全 PASS）。
+
+要在站点接入 P0/错点之后回归：跑站点自己的构建，再用同一套判据（DOM 规范化序列化 + 像素差阈值）。
+想做更强的 **React ↔ vanilla 一致性测试**，可用站点 `node_modules` 里的 `typescript` + `react-dom/server`
+把 `src/DotMatrix.tsx` 转译并渲染，再与 vanilla 输出逐字比对（本机已确认这两个包存在）——
+属于可选的下一步，目前未实现。
