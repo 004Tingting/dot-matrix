@@ -300,5 +300,5 @@ document.addEventListener("visibilitychange", () => host.toggleAttribute("data-o
 | **P2** | §4.3 滚动模式、§4.4 逐位翻牌、§4.5 交互 API、§5.1 无障碍语义 | 按需 |
 | 不做 | Canvas 重写、§3.6 之外的微优化 | — |
 
-> P0 修复只动本仓库（`P:\website_contents\dot-matrix`），**没有改动 `personal-site` 的任何文件**；
+> P0 修复只动本仓库（`P:\website_contents\components\dot-matrix`），**没有改动 `personal-site` 的任何文件**；
 > 站点若要同步，自行执行 `git apply patches/0001-p0-scoped-keyframes.patch`（已验应用后逐字节一致）。
