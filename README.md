@@ -63,10 +63,13 @@
 
 ---
 
+> 接手 / 换会话？先看 **[HANDOFF.md](HANDOFF.md)** —— 当前状态、关键决策、踩过的坑、待办。
+
 ## 文件结构
 
 ```
 dot-matrix/
+├─ HANDOFF.md                交接文档（状态 / 决策 / 坑 / 待办）
 ├─ src/DotMatrix.tsx          React 组件（零依赖，注入 <style>，可 SSR；含 P0 修复 + 错点 + 视觉/状态参数）
 ├─ demo/
 │  ├─ index.html              零构建演示页（双击即可打开，含 10 栏：原版 / 错点调参 / 状态语言 / 视觉参数 / 状态与环境）
