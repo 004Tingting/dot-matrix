@@ -63,7 +63,7 @@
 
 ---
 
-## 目录
+## 文件结构
 
 ```
 dot-matrix/
@@ -82,7 +82,7 @@ dot-matrix/
 │  ├─ compare-result.png        校验结果截图
 │  ├─ p0-regression.html        P0 回归探针（12 项）
 │  ├─ glitch-probe.html         错点效果探针（17 项）
-│  ├─ features-probe.html       视觉/状态参数语义探针（42 项）
+│  ├─ features-probe.html       视觉/状态参数语义探针（46 项）
 │  ├─ react-parity.mjs          React 版 ↔ vanilla 版逐用例一致性（23 用例）
 │  ├─ typecheck.mjs             站点同款编译选项（strict / isolatedModules）类型检查
 │  ├─ phase-probe.html          动画相位探针
@@ -262,10 +262,22 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 | P0-2 守卫 | 单组 `auto` 无动画节点、`always` 有；n = 1 关键帧无越界百分比 |
 | 两块屏并排渲染的像素差 | 15 600 像素中 4 个不同，最大通道差 8/255（亚像素抗锯齿） |
 
-另有 `test/p0-regression.html`（12 项）、`test/glitch-probe.html`（17 项）、
-`test/features-probe.html`（42 项，覆盖视觉/状态参数语义），以及
-`test/react-parity.mjs`（23 用例，React 版 ↔ vanilla 版逐字节比对）、
-`test/typecheck.mjs`（站点同款 `strict` + `isolatedModules` 类型检查 —— parity 只转译不查类型，会漏这类错）。复跑步骤见 [test/verify.md](test/verify.md)。
+其余五项检查（P0 回归 / 错点 / 参数语义 / React↔vanilla 一致性 / 类型检查）见下面的[测试](#测试)一节。
+
+## 测试
+
+六个检查，全部可本地复跑（不需要构建链；`*.mjs` 用 Node ≥ 22，浏览器探针用 Chrome）：
+
+| 检查 | 命令 | 期望 |
+| --- | --- | --- |
+| 类型检查（站点同款 `strict`） | `node test/typecheck.mjs` | `PASS`（依赖从 `personal-site/node_modules` 借用） |
+| React ↔ vanilla 一致性 | `node test/react-parity.mjs` | `全部一致（23 个用例）` |
+| 站点 SSG 对照 | 起 `python -m http.server 8123` → 打开 `test/compare.html` | 17 项 PASS |
+| P0 回归 | 同上 → `test/p0-regression.html` | 12 项 PASS |
+| 错点效果 | 同上 → `test/glitch-probe.html` | 17 项 PASS |
+| 视觉/状态参数语义 | 同上 → `test/features-probe.html` | 46 项 PASS |
+
+细节与判据见 [test/verify.md](test/verify.md)。
 
 ## 已知边界
 
@@ -292,7 +304,7 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 - 上游仓库：`https://github.com/004Tingting/004Tingting.github.io`（作者 `004Tingting`）
   - 一稿 `427f1b6`（2026-10-15 02:33，两组轮换）→ 二稿 `43c00d6`（03:08，三组轮换）
   - **提取基准** = `43c00d6:components/DotMatrix.tsx`，SHA-256 `0F7896CD23B110205DEF4CAF3A9B2B16BF87BA390DDA633F512B7E5282D59221`
-    （提取时该二稿尚未提交，从工作树取；内容与 `43c00d6` 逐字节一致。站点侧此后到 `997e410` 未再改动该文件）
+    （提取时该二稿尚未提交，从工作树取；内容与 `43c00d6` 逐字节一致）
     - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `886944859202162F80F3BAA465EB6F16F85345E94C72FA8D311F16E2A24224DC`，6 hunk，+44 / −15）
     - 再叠 `patches/0002-glitch-effect.patch` = 错点效果版（8 hunk，+160 / −2）
     - 再叠 `patches/0003-visual-state-params.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `4670074039DB852F80256444C4B84AEB922FE92C7CF7BFAA351FEC8C9682F8E5`，10 hunk，+359 / −92）
@@ -302,18 +314,15 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 - 完整来源梳理与灵感说明：[docs/origin.md](docs/origin.md)
 - 许可：[MIT](LICENSE)
 
-## 上传到 GitHub
+## 发布
 
-```bash
-cd dot-matrix
-git init -b main
-git add .
-git commit -m "feat: 点阵屏 DotMatrix（5×7 LED 字模，纯 SVG + CSS）"
-git remote add origin git@github.com:<你>/dot-matrix.git
-git push -u origin main
-```
+仓库：**<https://github.com/004Tingting/dot-matrix>**（公开，MIT）。
 
-想在线看演示页：仓库 **Settings → Pages → Source 选 "GitHub Actions"**，
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml) 会把 `demo/` 发布到 Pages
-（访问 `https://<你>.github.io/dot-matrix/`）。若更习惯「Deploy from a branch」，
-把 `demo/` 内容挪到仓库根目录（或分支根目录）即可，演示页只依赖 `index.html` + `dot-matrix.js` 两个文件。
+- **演示页**：`.github/workflows/pages.yml` 把 `demo/` 作为站点根发布。首次启用：仓库
+  **Settings → Pages → Source 选 "GitHub Actions"**，之后每次推 `main` 自动重建
+  （访问 `https://004tingting.github.io/dot-matrix/`）。
+- **只要源码**：直接复制 `src/DotMatrix.tsx`（零依赖、无构建），或用 `patches/` 叠到 `personal-site`。
+- **发版**：`git tag v1.0.0 && git push --tags`（当前未打 tag；语义化版本从下次行为变更开始用）。
+
+若更习惯「Deploy from a branch」：把 `demo/` 内容挪到仓库根目录即可，演示页只依赖
+`index.html` + `dot-matrix.js`（`boot.html` 同理）。

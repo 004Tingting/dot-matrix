@@ -137,7 +137,7 @@ PASS  ⑦ 错点在 prefers-reduced-motion 下被禁用
 
 ## 8. 视觉/状态参数探针
 
-`test/features-probe.html` 用 42 项断言覆盖新参数的**语义**（parity 只保证两个实现一致，不保证参数做对了事）：
+`test/features-probe.html` 用 46 项断言覆盖新参数的**语义**（parity 只保证两个实现一致，不保证参数做对了事）：
 
 ```
 PASS  ① 默认参数不产生任何新节点/新规则、点半径仍为 2、根 class 只有作用域类（回归保护）
@@ -186,7 +186,7 @@ node test/typecheck.mjs
 
 | 目标 | 状态 |
 | --- | --- |
-| `demo/dot-matrix.js`（vanilla 实现） | ✅ 对照校验 17 项 + P0 探针 12 项 + 错点探针 17 项 + 参数探针 42 项 |
+| `demo/dot-matrix.js`（vanilla 实现） | ✅ 对照校验 17 项 + P0 探针 12 项 + 错点探针 17 项 + 参数探针 46 项 |
 | `src/DotMatrix.tsx`（React 版） | ✅ `react-parity.mjs` 23 用例逐字节比对 + `typecheck.mjs` 类型检查（此前是缺口，现已补上） |
 | 站点 SSG 真实输出 | ✅ 作为对照基准（`reference-home-aside.svg`），逐节点 + 像素比对 |
 

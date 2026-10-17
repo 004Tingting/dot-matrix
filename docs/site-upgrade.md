@@ -49,6 +49,9 @@ sha256sum components/DotMatrix.tsx
 
 > 那个哈希是上游 `43c00d6`（2026-10-15 二稿）里的 `DotMatrix.tsx`。**如果对不上**，说明这个文件被改过，
 > 先 `git diff 43c00d6 -- components/DotMatrix.tsx` 看清差异再打补丁，不要硬 apply。
+>
+> **如果哈希已经是 `46700740…`**（= 本仓库 `src` 的版本），说明三片补丁**已经应用过**了 —— 直接跳到 §4。
+> 也可以用 `git apply --check` 预检：报 `patch does not apply` 通常就是已经打过了。
 
 建议开个分支：`git switch -c feat/dotmatrix-upgrade`
 
@@ -168,6 +171,10 @@ git apply /path/to/dot-matrix/patches/0003-visual-state-params.patch
 ```
 
 ### 4.3 逐处说明（不想要就删那一行）
+
+> **最小接入**：如果只想先要开机自检，其实只加一个 prop 就够 ——
+> `<DotMatrix … boot />`（其余照旧）。这是「只打补丁 + 一个 prop」的最小改动，
+> 也是最先能肉眼确认「补丁生效了」的方式。下面这些是进一步的可选项。
 
 | 改动 | 为什么 | 删掉会怎样 |
 | --- | --- | --- |
