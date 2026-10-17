@@ -1,5 +1,5 @@
 diff --git a/components/DotMatrix.tsx b/components/DotMatrix.tsx
-index e4582c9..ace01dd 100644
+index e4582c9..d4a9272 100644
 --- a/components/DotMatrix.tsx
 +++ b/components/DotMatrix.tsx
 @@ -28,10 +28,50 @@
@@ -161,7 +161,7 @@ index e4582c9..ace01dd 100644
  }: {
    /** 轮换显示的内容（渲染自动大写；建议 ≤7 字符，超长会整体缩小） */
    items: string[];
-@@ -176,6 +248,28 @@ export default function DotMatrix({
+@@ -176,6 +248,29 @@ export default function DotMatrix({
    animate?: "auto" | "always" | "never";
    /** 错点效果（默认关闭；传数字等价于 { density }） */
    glitch?: DotMatrixGlitch | number;
@@ -185,12 +185,13 @@ index e4582c9..ace01dd 100644
 +  gutter?: boolean | DotMatrixGutter;
 +  /** "run"（默认）/ "idle"（待机：底点 + 中间行来回扫的脉冲，不显示内容） */
 +  state?: "run" | "idle";
-+  /** 开机自检：整屏先全亮，再按列逐列退回底点（一次性） */
-+  boot?: boolean;
++  /** 开机自检：整屏先全亮，再按列逐列退回底点（一次性）。
++   *  `true` 用默认节奏（fadeMs 520 / colStepMs 18）；也可传 { fadeMs, colStepMs } 调。 */
++  boot?: boolean | { fadeMs?: number; colStepMs?: number };
  }) {
    const list = items.length > 0 ? items : [""];
    const n = list.length;
-@@ -185,63 +279,72 @@ export default function DotMatrix({
+@@ -185,63 +280,76 @@ export default function DotMatrix({
    const singleAnimated = animated && n === 1;
    /** 夹取定格组下标，避免 prefers-reduced-motion 下定格到不存在的组 → 整屏不可见 */
    const fixedPrimary = Math.min(Math.max(0, Math.trunc(primary)), n - 1);
@@ -199,7 +200,11 @@ index e4582c9..ace01dd 100644
    const gl = normalizeGlitch(glitch);
 +  const gu = normalizeGutter(gutter);
 +  const idle = state === "idle";
-+  const bootOn = boot && !idle;
++  const bootCfg = boot && boot !== true ? boot : {};
++  const bootOn = !!boot && !idle;
++  /** 自检节奏：单点淡出时长 / 相邻列错峰 */
++  const bootFade = Math.max(80, Math.round(bootCfg.fadeMs ?? 520));
++  const bootStep = Math.max(0, Math.round(bootCfg.colStepMs ?? 18));
 +
 +  /** 文字区宽度（不含两侧指示列） */
 +  const textCols = Math.max(COLS_PER_CHAR * 2, ...list.map((s) => (COLS_PER_CHAR + CHAR_GAP) * s.length - CHAR_GAP));
@@ -308,7 +313,7 @@ index e4582c9..ace01dd 100644
          for (let r = 0; r < ROWS; r++) {
            const cell = c * ROWS + r;
            if (cellSets[k].has(cell)) continue;
-@@ -273,9 +376,9 @@ ${scope}.dm-off { fill: var(--color-ink); opacity: 0.13; }
+@@ -273,9 +381,9 @@ ${scope}.dm-off { fill: var(--color-ink); opacity: 0.13; }
                key={`g${cell}-${k}`}
                cx={(c + 0.5) * PITCH}
                cy={(r + 0.5) * PITCH}
@@ -320,7 +325,7 @@ index e4582c9..ace01dd 100644
              />,
            );
          }
-@@ -304,13 +407,13 @@ ${scope}.dm-off { fill: var(--color-ink); opacity: 0.13; }
+@@ -304,13 +412,13 @@ ${scope}.dm-off { fill: var(--color-ink); opacity: 0.13; }
  
      if (glitchDots.length > 0) {
        const dur = effP * cycle;
@@ -338,7 +343,7 @@ index e4582c9..ace01dd 100644
    100% { opacity: 0; }
  }
  ${scope}.dm-glitch { fill: var(--dm-glitch-ink, var(--color-ink)); opacity: 0; animation: ${gName} ${dur}ms linear infinite; }
-@@ -319,50 +422,223 @@ ${scope}.dm-glitch { fill: var(--dm-glitch-ink, var(--color-ink)); opacity: 0; a
+@@ -319,50 +427,223 @@ ${scope}.dm-glitch { fill: var(--dm-glitch-ink, var(--color-ink)); opacity: 0; a
  }`;
      }
    }
@@ -423,7 +428,7 @@ index e4582c9..ace01dd 100644
 +  0% { opacity: 1; }
 +  100% { opacity: 0.13; }
 +}`);
-+    cssParts.push(`.dm-n${n}.dm-boot .dm-off { animation: ${bootName} 520ms ease-out both; }`);
++    cssParts.push(`.dm-n${n}.dm-boot .dm-off { animation: ${bootName} ${bootFade}ms ease-out both; }`);
 +  }
 +
 +  /* reduced-motion：定格 primary 组；新增的装饰动画一并停掉 */
@@ -495,7 +500,7 @@ index e4582c9..ace01dd 100644
 -              style={{ animationDelay: `${k * ITEM_MS + c * COL_STEP_MS + (victimShift.get(cell * n + k) ?? 0)}ms` }}
 +              r={dotR}
 +              className="dm-off"
-+              style={bootOn ? { animationDelay: `${c * 18}ms` } : undefined}
++              style={bootOn ? { animationDelay: `${c * bootStep}ms` } : undefined}
              />,
            );
 +        } else if (owners.length === n && !singleAnimated) {

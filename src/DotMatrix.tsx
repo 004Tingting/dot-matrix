@@ -268,8 +268,9 @@ export default function DotMatrix({
   gutter?: boolean | DotMatrixGutter;
   /** "run"（默认）/ "idle"（待机：底点 + 中间行来回扫的脉冲，不显示内容） */
   state?: "run" | "idle";
-  /** 开机自检：整屏先全亮，再按列逐列退回底点（一次性） */
-  boot?: boolean;
+  /** 开机自检：整屏先全亮，再按列逐列退回底点（一次性）。
+   *  `true` 用默认节奏（fadeMs 520 / colStepMs 18）；也可传 { fadeMs, colStepMs } 调。 */
+  boot?: boolean | { fadeMs?: number; colStepMs?: number };
 }) {
   const list = items.length > 0 ? items : [""];
   const n = list.length;
@@ -282,7 +283,11 @@ export default function DotMatrix({
   const gl = normalizeGlitch(glitch);
   const gu = normalizeGutter(gutter);
   const idle = state === "idle";
-  const bootOn = boot && !idle;
+  const bootCfg = boot && boot !== true ? boot : {};
+  const bootOn = !!boot && !idle;
+  /** 自检节奏：单点淡出时长 / 相邻列错峰 */
+  const bootFade = Math.max(80, Math.round(bootCfg.fadeMs ?? 520));
+  const bootStep = Math.max(0, Math.round(bootCfg.colStepMs ?? 18));
 
   /** 文字区宽度（不含两侧指示列） */
   const textCols = Math.max(COLS_PER_CHAR * 2, ...list.map((s) => (COLS_PER_CHAR + CHAR_GAP) * s.length - CHAR_GAP));
@@ -502,7 +507,7 @@ ${scope}.dm-glitch { fill: var(--dm-glitch-ink, var(--color-ink)); opacity: 0; a
   0% { opacity: 1; }
   100% { opacity: 0.13; }
 }`);
-    cssParts.push(`.dm-n${n}.dm-boot .dm-off { animation: ${bootName} 520ms ease-out both; }`);
+    cssParts.push(`.dm-n${n}.dm-boot .dm-off { animation: ${bootName} ${bootFade}ms ease-out both; }`);
   }
 
   /* reduced-motion：定格 primary 组；新增的装饰动画一并停掉 */
@@ -555,7 +560,7 @@ ${rm.join("\n")}
               cy={cy}
               r={dotR}
               className="dm-off"
-              style={bootOn ? { animationDelay: `${c * 18}ms` } : undefined}
+              style={bootOn ? { animationDelay: `${c * bootStep}ms` } : undefined}
             />,
           );
         } else if (owners.length === n && !singleAnimated) {

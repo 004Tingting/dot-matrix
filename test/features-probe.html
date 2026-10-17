@@ -193,6 +193,15 @@
           var space = DotMatrix.create(["A B"], {});
           line(space.querySelectorAll("circle").length === DotMatrix.create(["AB "], {}).querySelectorAll("circle").length,
             "⑦ 空格占 1 格宽度（与显式空格字模一致）");
+          /* 自检节奏可调（boot: true 用默认 520/18） */
+          line(/dm-boot-3 520ms ease-out both/.test(css(boot)), "⑦ boot:true 用默认节奏 520ms");
+          var bootSlow = DotMatrix.create(ITEMS, { boot: { fadeMs: 900, colStepMs: 40 } });
+          var slowOffs = bootSlow.querySelectorAll(".dm-off");
+          line(/dm-boot-3 900ms ease-out both/.test(css(bootSlow)), "⑦ boot.fadeMs 生效（900ms）");
+          line(Array.prototype.every.call(slowOffs, function (e) { return delayOf(e) === colOf(e) * 40; }),
+            "⑦ boot.colStepMs 生效（列号 × 40ms）", delayOf(slowOffs[0]) + " / " + delayOf(slowOffs[7]) + "ms");
+          line(/\.dm-boot \.dm-off \{ animation: none; opacity: 0\.13; \}/.test(css(bootSlow)),
+            "⑦ reduced-motion 下自检也被禁用");
 
           /* ⑧ 无障碍 */
           var al = DotMatrix.create(ITEMS, { label: "累计 tokens 6.63B", lang: "zh-CN" });

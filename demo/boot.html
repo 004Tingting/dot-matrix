@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>开机自检 · DotMatrix</title>
+    <meta name="description" content="点阵屏的开机自检：整屏先全亮，再按列逐列退回底点（纯 CSS、一次性动画）。" />
+    <style>
+      /* 与 demo/index.html 同一套令牌 */
+      :root {
+        --color-paper: #faf8f5;
+        --color-ink: #1a1a1a;
+        --color-accent: #b4432e;
+        --color-rule: rgba(26, 26, 26, 0.15);
+        --color-muted: rgba(26, 26, 26, 0.55);
+        --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --color-paper: #141414;
+          --color-ink: #edeae4;
+          --color-accent: #d0604a;
+          --color-rule: rgba(237, 234, 228, 0.15);
+          --color-muted: rgba(237, 234, 228, 0.55);
+        }
+      }
+      :root[data-theme="dark"] {
+        --color-paper: #141414;
+        --color-ink: #edeae4;
+        --color-accent: #d0604a;
+        --color-rule: rgba(237, 234, 228, 0.15);
+        --color-muted: rgba(237, 234, 228, 0.55);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 0 24px 80px;
+        background: var(--color-paper);
+        color: var(--color-ink);
+        font-family: var(--font-mono);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; }
+      header { padding: 56px 0 28px; border-bottom: 1px solid var(--color-rule); }
+      .kicker { margin: 0; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-muted); }
+      .kicker span { color: var(--color-accent); }
+      h1 { margin: 12px 0 0; font-size: 34px; line-height: 1.2; }
+      .lede { margin: 12px 0 0; color: var(--color-muted); }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 20px; }
+      .seg { display: inline-flex; border: 1px solid var(--color-rule); border-radius: 2px; overflow: hidden; }
+      .seg button {
+        appearance: none; border: 0; border-right: 1px solid var(--color-rule);
+        background: transparent; color: var(--color-muted); font: inherit; font-size: 12px;
+        padding: 6px 12px; cursor: pointer;
+      }
+      .seg button:last-child { border-right: 0; }
+      .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--color-ink) 8%, transparent); color: var(--color-ink); }
+
+      section { padding: 32px 0; border-bottom: 1px solid var(--color-rule); }
+      h2 { margin: 0; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+      h2 em { font-style: normal; color: var(--color-accent); margin-right: 8px; }
+      .note { margin: 8px 0 0; color: var(--color-muted); font-size: 12px; }
+
+      .stage {
+        margin-top: 20px; padding: 20px;
+        border: 1px solid var(--color-rule);
+        background: color-mix(in srgb, var(--color-ink) 3%, transparent);
+      }
+      /* 外框（bezel）：宿主页面的 CSS 配方，不是组件功能 */
+      .bezel {
+        border-radius: 6px;
+        box-shadow: inset 0 0 0 1px var(--color-rule),
+                    inset 0 2px 10px color-mix(in srgb, var(--color-ink) 12%, transparent);
+      }
+      #host { max-width: 420px; }
+      #host svg { display: block; width: 100%; height: auto; }
+
+      .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; margin-top: 20px; }
+      .slabel { display: flex; justify-content: space-between; gap: 8px; color: var(--color-muted); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+      .slabel b { color: var(--color-ink); font-weight: 600; letter-spacing: 0; text-transform: none; }
+      input[type="range"] { width: 100%; accent-color: var(--color-accent); margin: 0; }
+      .actions { display: flex; gap: 10px; margin-top: 18px; }
+      .btn {
+        appearance: none; border: 1px solid var(--color-rule); background: transparent;
+        color: var(--color-ink); font: inherit; font-size: 12px; padding: 8px 16px;
+        cursor: pointer; border-radius: 2px;
+      }
+      .btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+      .btn--solid { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-paper); }
+      .btn--solid:hover { color: var(--color-paper); opacity: 0.9; }
+
+      pre {
+        margin: 18px 0 0; padding: 14px; border: 1px solid var(--color-rule);
+        overflow-x: auto; font-size: 12px; line-height: 1.6; color: var(--color-muted);
+      }
+      pre b { color: var(--color-ink); font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+      th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--color-rule); vertical-align: top; }
+      th { color: var(--color-muted); font-weight: 500; }
+      td code, p code { color: var(--color-ink); }
+      footer { padding-top: 28px; color: var(--color-muted); font-size: 12px; }
+      footer a { color: var(--color-accent); }
+      @media (max-width: 620px) { .controls { grid-template-columns: 1fr; } h1 { font-size: 26px; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="kicker"><span>·</span> Boot self-test</p>
+        <h1>开机自检</h1>
+        <p class="lede">
+          整屏先全部点亮（0% 关键帧），再按列逐列退回底点——像真机通电时的自检扫过。<br />
+          纯 CSS、一次性动画，<b>不新增任何节点</b>：直接复用那些 13% 的底点。
+        </p>
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="主题">
+            <button type="button" data-theme-btn="auto" aria-pressed="true">跟随系统</button>
+            <button type="button" data-theme-btn="light" aria-pressed="false">浅色</button>
+            <button type="button" data-theme-btn="dark" aria-pressed="false">深色</button>
+          </div>
+          <span class="note" style="margin: 0">无构建 · 无依赖 · 可离线打开</span>
+        </div>
+      </header>
+
+      <section>
+        <h2><em>①</em>看一次</h2>
+        <p class="note">
+          点「重播」重新创建一次（自检是 <code>animation-iteration-count: 1</code> 的一次性动画，重播 = 重新上电）。
+        </p>
+        <div class="stage bezel">
+          <div id="host"></div>
+        </div>
+        <div class="controls">
+          <div>
+            <div class="slabel"><span>fadeMs 单点淡出</span><b id="fade-v">520ms</b></div>
+            <input id="fade" type="range" min="80" max="1400" step="20" value="520" />
+          </div>
+          <div>
+            <div class="slabel"><span>colStepMs 每列错峰</span><b id="step-v">18ms</b></div>
+            <input id="step" type="range" min="0" max="60" step="1" value="18" />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn--solid" id="replay">重播</button>
+          <button type="button" class="btn" id="reset">恢复默认</button>
+          <button type="button" class="btn" id="slow">慢放看结构</button>
+        </div>
+        <pre id="code"></pre>
+      </section>
+
+      <section>
+        <h2><em>②</em>机制</h2>
+        <p class="note">
+          自检不是独立图层，而是给<b>已有的底点</b>挂一条一次性动画：起始 <code>opacity: 1</code>、结束 <code>0.13</code>，
+          每列的 <code>animation-delay = 列号 × colStepMs</code>，配合 <code>animation-fill-mode: both</code>，
+          所以延迟期间就已经是「全亮」状态，形成一次从左到右的扫退。
+        </p>
+        <pre>/* 根节点加 .dm-boot */
+.dm-n3.dm-boot .dm-off {
+  animation: dm-boot-3 <b>520ms</b> ease-out both;   /* 单点淡出 */
+  animation-delay: <b>列号 × 18ms</b>;               /* 内联，逐列错峰 */
+}
+@keyframes dm-boot-3 {
+  0%   { opacity: 1; }     /* 全亮 */
+  100% { opacity: 0.13; }  /* 退回底点 */
+}</pre>
+        <table>
+          <tr><th>总时长</th><td><code>列数 × colStepMs + fadeMs</code>（41 列默认 ≈ 738 + 520 ≈ 1.26s）</td></tr>
+          <tr><th>节点开销</th><td>0（复用底点，无新增元素）</td></tr>
+          <tr><th>与内容的关系</th><td>自检扫退的同时，内容组照常按自己的相位重组进入（两股动画并行）</td></tr>
+          <tr><th>reduced-motion</th><td>整条动画被禁用，直接停在底点</td></tr>
+          <tr><th>何时播</th><td>每次挂载/重新创建播一次；SSR 首帧即播（= 上电）</td></tr>
+        </table>
+      </section>
+
+      <footer>
+        由 <code>demo/dot-matrix.js</code> 渲染（与 <code>src/DotMatrix.tsx</code> 逐用例一致）·
+        MIT License · 参数说明见 <a href="../README.md">README</a> 与 <a href="../docs/site-upgrade.md">docs/site-upgrade.md</a>
+      </footer>
+    </div>
+
+    <script src="dot-matrix.js"></script>
+    <script>
+      (function () {
+        var host = document.getElementById("host");
+        var fade = document.getElementById("fade");
+        var step = document.getElementById("step");
+        var code = document.getElementById("code");
+        var ITEMS = ["STRIVE", "6.63B", "04Ting."];
+
+        function render() {
+          var fadeMs = Number(fade.value);
+          var colStep = Number(step.value);
+          document.getElementById("fade-v").textContent = fadeMs + "ms";
+          document.getElementById("step-v").textContent = colStep + "ms";
+          host.innerHTML = "";
+          var svg = DotMatrix.create(ITEMS, { primary: 1, boot: { fadeMs: fadeMs, colStepMs: colStep } });
+          host.appendChild(svg);
+          var cols = Math.round(parseFloat(svg.getAttribute("viewBox").split(" ")[2]) / 6.5);
+          code.innerHTML =
+            "DotMatrix.create([<b>\"STRIVE\",\"6.63B\",\"04Ting.\"</b>], { boot: <b>{ fadeMs: " + fadeMs + ", colStepMs: " + colStep + " }</b> })" +
+            "\n// " + cols + " 列 × " + colStep + "ms + " + fadeMs + "ms = <b>" + (cols * colStep + fadeMs) + "ms</b> 扫完";
+        }
+
+        [fade, step].forEach(function (el) { el.addEventListener("input", render); });
+        document.getElementById("replay").addEventListener("click", render);
+        document.getElementById("reset").addEventListener("click", function () {
+          fade.value = "520";
+          step.value = "18";
+          render();
+        });
+        document.getElementById("slow").addEventListener("click", function () {
+          fade.value = "900";
+          step.value = "45";
+          render();
+        });
+
+        /* 主题 */
+        var btns = document.querySelectorAll("[data-theme-btn]");
+        function apply(theme) {
+          if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+          else document.documentElement.setAttribute("data-theme", theme);
+          btns.forEach(function (b) {
+            b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-btn") === theme));
+          });
+          try { localStorage.setItem("dm-demo-theme", theme); } catch (e) {}
+        }
+        btns.forEach(function (b) {
+          b.addEventListener("click", function () { apply(b.getAttribute("data-theme-btn")); });
+        });
+        var saved = null;
+        try { saved = localStorage.getItem("dm-demo-theme"); } catch (e) {}
+        var qs = /[?&]theme=(auto|light|dark)\b/.exec(location.search);
+        if (qs) apply(qs[1]);
+        else if (saved) apply(saved);
+
+        render();
+      })();
+    </script>
+  </body>
+</html>

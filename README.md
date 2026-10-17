@@ -12,12 +12,15 @@
 ![重组扫掠中](preview/swap.png)
 ![错点效果](preview/glitch.png)
 ![错点作为状态语言](preview/status-language.png)
+![开机自检](preview/boot.png)
 
 > 前四张是站点上的实拍（`.workbuddy/verify/v2-matrix-*.png`，深色主题 300px 宽侧栏卡）；浅色主题见
 > [preview/light-word.png](preview/light-word.png)、[preview/light-value.png](preview/light-value.png)。
 > 第五张是错点效果与对照（左：`density .03 / patterns 8`，错点染红便于观察）。
-> 最后一张是**同一个错点效果的四种状态语义**（正常 / 刷新瞬间 / 数据陈旧 / 离线）——
+> 最后一张是**开机自检**的时间轴（0.12s 全亮 → 逐列退回底点，`fadeMs 700 / colStepMs 45` 慢放采样）；
+> 上面一张是**同一个错点效果的四种状态语义**（正常 / 刷新瞬间 / 数据陈旧 / 离线）——
 > 装饰变成信息，见 [docs/glitch.md](docs/glitch.md) §6 与演示页第 ⑧ 栏。
+> 自检可单独打开调节奏：[demo/boot.html](demo/boot.html)。
 > 完整演示页截图：[preview/demo-light.png](preview/demo-light.png) · [preview/demo-dark.png](preview/demo-dark.png)
 
 ---
@@ -51,7 +54,7 @@
                                       staggerMs / persistence / gutter / state / boot / label / lang
 ```
 
-三片都应用后与本仓库 `src/DotMatrix.tsx` 逐字节一致（SHA-256 `C8039C74…`，已验 `git apply --check`）。
+三片都应用后与本仓库 `src/DotMatrix.tsx` 逐字节一致（SHA-256 `3DF7DA9D…`，已验 `git apply --check`）。
 站点侧还建议改 `components/TokenMonitor.tsx` 的 `aside` 分支约 15 行（数值组配色、增量一栏、状态指示列、
 错点接数据状态、无障碍 label）—— **完整可粘贴的片段与视觉对照见 [docs/site-upgrade.md](docs/site-upgrade.md)**。
 
@@ -64,6 +67,7 @@ dot-matrix/
 ├─ src/DotMatrix.tsx          React 组件（零依赖，注入 <style>，可 SSR；含 P0 修复 + 错点 + 视觉/状态参数）
 ├─ demo/
 │  ├─ index.html              零构建演示页（双击即可打开，含 10 栏：原版 / 错点调参 / 状态语言 / 视觉参数 / 状态与环境）
+│  ├─ boot.html               开机自检单页（fadeMs / colStepMs 可调，含机制说明）
 │  └─ dot-matrix.js           同一算法的 vanilla JS 实现（window.DotMatrix，与 React 版逐用例比对）
 ├─ patches/
 │  ├─ 0001-p0-scoped-keyframes.patch   站点版 → P0 修复版
@@ -203,7 +207,7 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 | `persistence` | `0` | 余晖：数字 = 延后 ms，或 `{ ms, opacity }`；给每个亮点加一个暗副本（DOM ×2） |
 | `gutter` | — | 两侧固定状态指示列：`true` 或 `{ heartbeat, online }`；占宽 4 列，文字整体内缩 |
 | `state` | `"run"` | `"idle"` = 待机：只留底点 + 中间行来回扫的脉冲（无内容、无错点） |
-| `boot` | `false` | 开机自检：整屏先全亮，再按列逐列退回底点（一次性，复用底点、无额外节点） |
+| `boot` | `false` | 开机自检：整屏先全亮，再按列逐列退回底点（一次性，复用底点、无额外节点）。`true` 用默认节奏，或 `{ fadeMs, colStepMs }` 调 —— 单独一页看 [demo/boot.html](demo/boot.html) |
 
 无障碍：根节点是 `role="img"`，`aria-label` 为各组以 `" / "` 连接；`title` 另作悬停说明。
 
@@ -286,7 +290,7 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
     （提取时该二稿尚未提交，从工作树取；内容与 `43c00d6` 逐字节一致。站点侧此后到 `997e410` 未再改动该文件）
     - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `886944859202162F80F3BAA465EB6F16F85345E94C72FA8D311F16E2A24224DC`，6 hunk，+44 / −15）
     - 再叠 `patches/0002-glitch-effect.patch` = 错点效果版（8 hunk，+160 / −2）
-    - 再叠 `patches/0003-visual-state-params.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `C8039C7445E33654C0D24D494322C93CA45FAC678765882D4966B69C696B6D71`，10 hunk，+354 / −92）
+    - 再叠 `patches/0003-visual-state-params.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `3DF7DA9DE09024234CB18698177F1AD4FD35E600A17D1EDE6D830F888B3DB566`，10 hunk，+359 / −92）
     - 三片 patch 均已验：按顺序 `git apply` 后与对应版本**逐字节一致**
   - `components/TokenMonitor.tsx` — 首页侧栏 `variant === "aside"` 的接入点（`DOT_MATRIX_WORD` / `DOT_MATRIX_TAG`）
   - `app/globals.css` — 一稿的 `.dm-*` 规则（二稿已改为组件内注入）

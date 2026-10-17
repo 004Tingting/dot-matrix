@@ -105,7 +105,7 @@ glitch={burst ? { density: 0.035, patterns: 1, holdMs: 120, seed: 2 } : GLITCH_B
 | `warmth: 0.4` | 深色主题下点阵偏暖白，更像真 LED | 需 `color-mix`（2023+ 浏览器），老浏览器自动降级为纯 ink |
 | `sweep: "diag"` / `"dissolve"` | 重组方式从逐列变成对角/溶解，同一屏换性格 | 无 |
 | `persistence: 120` | 点亮位带一点余晖拖尾 | DOM ×2（动画点 214 → 428） |
-| `boot` | 每次上电整屏先全亮再逐列退回底点 | 无额外节点（复用底点） |
+| `boot` | 每次上电整屏先全亮再逐列退回底点；`{ fadeMs, colStepMs }` 调节奏（默认 520 / 18，单页演示见 `demo/boot.html`） | 无额外节点（复用底点） |
 | `state="idle"` | 无数据时不留空屏，中间行来回扫一个脉冲 | 无 |
 
 **周期问题**：现在是「每组 5s」固定值，4 组 = 20s 一轮。若嫌慢，两个选择：

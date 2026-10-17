@@ -96,6 +96,8 @@ const CASES = [
   { name: "指示列 + 离线", props: { items: ITEMS3, gutter: { heartbeat: true, online: false } } },
   { name: "待机 idle", props: { items: ITEMS3, state: "idle" } },
   { name: "开机自检 boot", props: { items: ITEMS3, boot: true } },
+  { name: "自检节奏 boot 参数", props: { items: ITEMS3, boot: { fadeMs: 900, colStepMs: 40 } } },
+  { name: "自检 + 指示列", props: { items: ITEMS3, boot: { fadeMs: 300, colStepMs: 10 }, gutter: true } },
   { name: "无障碍 label/lang", props: { items: ITEMS3, label: "累计 tokens 6.63B", lang: "zh-CN" } },
   { name: "全开", props: {
       items: ["STRIVE", "+12M", "6.63B", "04Ting."],

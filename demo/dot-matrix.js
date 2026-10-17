@@ -289,7 +289,10 @@ ${rm.join("\n")}
     var gl = normalizeGlitch(options.glitch);
     var gu = normalizeGutter(options.gutter);
     var idle = options.state === "idle";
+    var bootCfg = options.boot && options.boot !== true ? options.boot : {};
     var bootOn = !!options.boot && !idle;
+    var bootFade = Math.max(80, Math.round(bootCfg.fadeMs == null ? 520 : bootCfg.fadeMs));
+    var bootStep = Math.max(0, Math.round(bootCfg.colStepMs == null ? 18 : bootCfg.colStepMs));
 
     var textCols = Math.max(
       COLS_PER_CHAR * 2,
@@ -475,7 +478,7 @@ ${rm.join("\n")}
   0% { opacity: 1; }
   100% { opacity: 0.13; }
 }`);
-      parts.push(`.dm-n${n}.dm-boot .dm-off { animation: ${bootName} 520ms ease-out both; }`);
+      parts.push(`.dm-n${n}.dm-boot .dm-off { animation: ${bootName} ${bootFade}ms ease-out both; }`);
     }
     /* reduced-motion 媒体块必须排在所有规则之后（与 React 版同序） */
     parts.push(buildReducedMotion(n, rmExtra));
@@ -523,7 +526,7 @@ ${rm.join("\n")}
           var owners = [];
           for (var k = 0; k < n; k++) if (cellSets[k].has(cell)) owners.push(k);
           if (owners.length === 0) {
-            svg.appendChild(dot(cx, cy, "dm-off", bootOn ? c * 18 : undefined, dotR));
+            svg.appendChild(dot(cx, cy, "dm-off", bootOn ? c * bootStep : undefined, dotR));
           } else if (owners.length === n && !singleAnimated) {
             svg.appendChild(dot(cx, cy, "dm-both", undefined, dotR));
           } else {
@@ -606,7 +609,7 @@ ${rm.join("\n")}
           persistence: json(persistence, persistence === null ? undefined : Number(persistence)),
           gutter: json(host.getAttribute("data-gutter"), undefined),
           state: host.getAttribute("data-state") || undefined,
-          boot: host.hasAttribute("data-boot"),
+          boot: json(host.getAttribute("data-boot"), host.hasAttribute("data-boot") ? true : undefined),
           glitch: json(host.getAttribute("data-glitch"), undefined),
         })
       );
