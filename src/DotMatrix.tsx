@@ -283,7 +283,7 @@ export default function DotMatrix({
   const gl = normalizeGlitch(glitch);
   const gu = normalizeGutter(gutter);
   const idle = state === "idle";
-  const bootCfg = boot && boot !== true ? boot : {};
+  const bootCfg: { fadeMs?: number; colStepMs?: number } = typeof boot === "object" ? boot : {};
   const bootOn = !!boot && !idle;
   /** 自检节奏：单点淡出时长 / 相邻列错峰 */
   const bootFade = Math.max(80, Math.round(bootCfg.fadeMs ?? 520));

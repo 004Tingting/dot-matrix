@@ -1,5 +1,5 @@
 diff --git a/components/DotMatrix.tsx b/components/DotMatrix.tsx
-index e4582c9..d4a9272 100644
+index e4582c9..a7b73b2 100644
 --- a/components/DotMatrix.tsx
 +++ b/components/DotMatrix.tsx
 @@ -28,10 +28,50 @@
@@ -200,7 +200,7 @@ index e4582c9..d4a9272 100644
    const gl = normalizeGlitch(glitch);
 +  const gu = normalizeGutter(gutter);
 +  const idle = state === "idle";
-+  const bootCfg = boot && boot !== true ? boot : {};
++  const bootCfg: { fadeMs?: number; colStepMs?: number } = typeof boot === "object" ? boot : {};
 +  const bootOn = !!boot && !idle;
 +  /** 自检节奏：单点淡出时长 / 相邻列错峰 */
 +  const bootFade = Math.max(80, Math.round(bootCfg.fadeMs ?? 520));

@@ -54,9 +54,12 @@
                                       staggerMs / persistence / gutter / state / boot / label / lang
 ```
 
-三片都应用后与本仓库 `src/DotMatrix.tsx` 逐字节一致（SHA-256 `3DF7DA9D…`，已验 `git apply --check`）。
-站点侧还建议改 `components/TokenMonitor.tsx` 的 `aside` 分支约 15 行（数值组配色、增量一栏、状态指示列、
-错点接数据状态、无障碍 label）—— **完整可粘贴的片段与视觉对照见 [docs/site-upgrade.md](docs/site-upgrade.md)**。
+三片都应用后与本仓库 `src/DotMatrix.tsx` 逐字节一致（SHA-256 `46700740…`，已验 `git apply --check`）。
+站点侧还建议改 `components/TokenMonitor.tsx` 的 `aside` 分支约 20 行（数值组配色、增量一栏、状态指示列、
+错点接数据状态、无障碍 label）。
+
+**照着做的分步交付文档：[docs/site-upgrade.md](docs/site-upgrade.md)** —— 含改前校验（哈希比对）、
+逐片 apply 与验证、可直接粘贴的 TokenMonitor 片段、类型检查与构建命令、10 条验收清单、回滚、10 个常见坑、参数速查。
 
 ---
 
@@ -80,13 +83,14 @@ dot-matrix/
 │  ├─ p0-regression.html        P0 回归探针（12 项）
 │  ├─ glitch-probe.html         错点效果探针（17 项）
 │  ├─ features-probe.html       视觉/状态参数语义探针（42 项）
-│  ├─ react-parity.mjs          React 版 ↔ vanilla 版逐用例一致性（21 用例）
+│  ├─ react-parity.mjs          React 版 ↔ vanilla 版逐用例一致性（23 用例）
+│  ├─ typecheck.mjs             站点同款编译选项（strict / isolatedModules）类型检查
 │  ├─ phase-probe.html          动画相位探针
 │  ├─ shot.mjs                  确定性截图工具（CDP + 真实等待，预览图由它产出）
 │  └─ verify.md                 复跑步骤与结论
 ├─ docs/
 │  ├─ origin.md               来源与灵感：上游提交、brief 原文、设计语境、时间线、增量归属
-│  ├─ site-upgrade.md         直接改进版：patch 链、TokenMonitor 改动片段、每项的视觉效果
+│  ├─ site-upgrade.md         交付文档：改前校验 / 逐片 apply / TokenMonitor 片段 / 验收清单 / 常见坑
 │  ├─ integration.md          在 personal-site 里的接入方式与设计取舍
 │  ├─ glitch.md               错点效果：参数语义、轮次算法、DOM 代价、时间轴
 │  └─ improvements.md         可改进点：实测数据 + 优先级 + 修法（P0 已修，P1/P2 待办）
@@ -260,7 +264,8 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
 
 另有 `test/p0-regression.html`（12 项）、`test/glitch-probe.html`（17 项）、
 `test/features-probe.html`（42 项，覆盖视觉/状态参数语义），以及
-`test/react-parity.mjs`（21 用例，React 版 ↔ vanilla 版逐字节比对）。复跑步骤见 [test/verify.md](test/verify.md)。
+`test/react-parity.mjs`（23 用例，React 版 ↔ vanilla 版逐字节比对）、
+`test/typecheck.mjs`（站点同款 `strict` + `isolatedModules` 类型检查 —— parity 只转译不查类型，会漏这类错）。复跑步骤见 [test/verify.md](test/verify.md)。
 
 ## 已知边界
 
@@ -290,7 +295,7 @@ html[data-theme="dark"] { --color-ink: #edeae4; }
     （提取时该二稿尚未提交，从工作树取；内容与 `43c00d6` 逐字节一致。站点侧此后到 `997e410` 未再改动该文件）
     - `patches/0001-p0-scoped-keyframes.patch` 应用后 = P0 修复版（SHA-256 `886944859202162F80F3BAA465EB6F16F85345E94C72FA8D311F16E2A24224DC`，6 hunk，+44 / −15）
     - 再叠 `patches/0002-glitch-effect.patch` = 错点效果版（8 hunk，+160 / −2）
-    - 再叠 `patches/0003-visual-state-params.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `3DF7DA9DE09024234CB18698177F1AD4FD35E600A17D1EDE6D830F888B3DB566`，10 hunk，+359 / −92）
+    - 再叠 `patches/0003-visual-state-params.patch` = 本仓库 `src/DotMatrix.tsx`（SHA-256 `4670074039DB852F80256444C4B84AEB922FE92C7CF7BFAA351FEC8C9682F8E5`，10 hunk，+359 / −92）
     - 三片 patch 均已验：按顺序 `git apply` 后与对应版本**逐字节一致**
   - `components/TokenMonitor.tsx` — 首页侧栏 `variant === "aside"` 的接入点（`DOT_MATRIX_WORD` / `DOT_MATRIX_TAG`）
   - `app/globals.css` — 一稿的 `.dm-*` 规则（二稿已改为组件内注入）

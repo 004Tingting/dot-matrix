@@ -167,12 +167,27 @@ node test/react-parity.mjs        # 21 个用例，覆盖默认 / 单组 / 错�
 缺依赖时打印 SKIP 并以 0 退出。这个脚本在实现本批参数时立刻抓到过一次真实分歧
 （两边的 CSS 拼装顺序不同），是本仓库唯一能直接校验 React 版的手段。
 
-## 10. 覆盖范围
+## 10. 类型检查（typecheck.mjs）
+
+`test/typecheck.mjs` 用**站点同款编译选项**（`strict` / `isolatedModules` / `target ES2022` / `jsx preserve`）
+对 `src/DotMatrix.tsx` 跑一次 `tsc`。为什么需要单独一个脚本：`react-parity.mjs` 用的是
+`typescript.transpileModule`（只剥类型、不查类型），**类型错误它抓不到**——而站点是 `strict: true`，
+一个类型错误就会让 `npm run build` 失败。
+
+```
+node test/typecheck.mjs
+# PASS  typecheck：src/DotMatrix.tsx 通过（strict / isolatedModules / target ES2022 / jsx preserve）
+```
+
+依赖 `typescript` + `@types/react`（默认从 `personal-site/node_modules` 借用，只读；也可 `NODE_PATH` 指定）。
+本脚本已做**负向验证**：故意把 `const bootStep` 标成 `string` 后，它确实报 `TS2322` 并以 1 退出。
+
+## 11. 覆盖范围
 
 | 目标 | 状态 |
 | --- | --- |
 | `demo/dot-matrix.js`（vanilla 实现） | ✅ 对照校验 17 项 + P0 探针 12 项 + 错点探针 17 项 + 参数探针 42 项 |
-| `src/DotMatrix.tsx`（React 版） | ✅ `react-parity.mjs` 21 用例逐字节比对（此前是缺口，现已补上） |
+| `src/DotMatrix.tsx`（React 版） | ✅ `react-parity.mjs` 23 用例逐字节比对 + `typecheck.mjs` 类型检查（此前是缺口，现已补上） |
 | 站点 SSG 真实输出 | ✅ 作为对照基准（`reference-home-aside.svg`），逐节点 + 像素比对 |
 
 仍**不覆盖**：真实浏览器里的视觉回归（截图靠人眼看）、`prefers-reduced-motion` 的实际媒体查询生效
